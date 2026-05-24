@@ -37,7 +37,7 @@
 
 ## Prerequisites
 
-- [ ] Stage [N-1] is marked `done` in `manifest.json`
+- [ ] Stage [N-1] is marked `done` in `manifest.yaml`
 - [ ] Any other prerequisite condition
 
 ---
@@ -127,9 +127,9 @@ If no changes are needed, note "Reviewed — no documentation updates required" 
 
 ## Commit
 
-After all verification checks pass and `manifest.json` has been updated for this stage:
+After all verification checks pass and `manifest.yaml` has been updated for this stage:
 
-1. Stage all changes from this stage (including the `manifest.json` update).
+1. Stage all changes from this stage (including the `manifest.yaml` update).
 2. Commit using [Conventional Commits](https://www.conventionalcommits.org/) format.
 3. Choose the commit type based on what this stage actually does (`feat`, `fix`, `test`, `docs`, `refactor`, etc.).
 4. Include the ticket ID if one was detected in the branch name.
@@ -149,7 +149,7 @@ If this stage fails or must be reverted:
 
 1. Specific step to undo changes (e.g., "Delete `path/to/new-file.ts`")
 2. Specific step (e.g., "Revert `path/to/existing-file.ts` via `git checkout`" or `git revert <commit>`)
-3. Set this stage's `status` to `failed` in `manifest.json`
+3. Set this stage's `status` to `failed` in `manifest.yaml`
 
 ---
 

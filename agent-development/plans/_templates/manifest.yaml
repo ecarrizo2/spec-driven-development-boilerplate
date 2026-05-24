@@ -1,0 +1,86 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Plan Manifest
+# ─────────────────────────────────────────────────────────────────────────────
+# Authoritative record of task state and execution progress.
+# Agents update this file after each stage. Humans update the approval field.
+#
+# Status values reference: user-development/STATUS-REFERENCE.md
+# ─────────────────────────────────────────────────────────────────────────────
+
+plan_metadata:
+  task_id: null               # Must match originating request number (e.g., 1, 2, 3)
+  task_name: ""               # Must match request filename: short-descriptive-name
+  status: draft               # draft | pending-approval | approved | in-progress | done | failed | paused
+  complexity: null            # Fibonacci: 1 | 2 | 3 | 5 | 8 | 13 — inherited from request
+  total_stages: 0
+  current_stage: 0
+  created: null               # YYYY-MM-DD
+  last_updated: null          # YYYY-MM-DD
+
+  # Approval tracking (replaces folder move from plans/ → queued/)
+  # A plan is ready for execution when approval.status == "approved"
+  approval:
+    status: pending           # pending | approved | changes-requested
+    approved_by: null
+    approved_at: null         # YYYY-MM-DD
+    notes: ""                 # Human can add approval notes or change-request details
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Dependencies
+# ─────────────────────────────────────────────────────────────────────────────
+dependencies:
+  required_tasks: []          # Task IDs that must be 'done' before this plan can execute
+  packages: []                # New dependencies to install (e.g., ["zod", "@nestjs/config"])
+  affected_modules: []        # Project modules this plan touches
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stages
+# ─────────────────────────────────────────────────────────────────────────────
+stages:
+  - stage_id: 1
+    name: ""
+    description: ""           # What this stage accomplishes and why it's a discrete unit
+    instruction_file: ""      # e.g., "1-stage-name.md"
+    status: todo              # todo | in-progress | done | skipped | failed
+    complexity: null          # Fibonacci, per-stage
+    context_files: []         # Files the agent must read before starting
+    output_files: []          # Files the agent will create or modify
+    verification_commands: [] # Commands to run after stage completion
+    rollback_plan: ""         # Specific steps to undo this stage
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Spec & Doc Update Stages (multi-stage plans only)
+  # ───────────────────────────────────────────────────────────────────────────
+  # For SINGLE-STAGE plans: spec/doc updates are INLINE steps at the end of
+  # the single stage. Do NOT add separate stages below.
+  #
+  # For MULTI-STAGE plans: add these as the final stages. Renumber stage_id
+  # to fit your plan. If no changes are needed, mark as 'skipped' with a note.
+  #
+  # See agent-workflow.md for full rules.
+  # ───────────────────────────────────────────────────────────────────────────
+
+  # - stage_id: __PENULTIMATE__
+  #   name: "Spec Updates"
+  #   description: "Update agent-development/agent-specs/ files to reflect changes."
+  #   instruction_file: "N-1-spec-updates.md"
+  #   status: todo
+  #   complexity: 1
+  #   context_files:
+  #     - agent-development/agent-specs/architecture-breakdown.md
+  #     - agent-development/agent-specs/agent-instructions.md
+  #   output_files: []
+  #   verification_commands: []
+  #   rollback_plan: "Revert spec files via git checkout."
+
+  # - stage_id: __LAST__
+  #   name: "Documentation Updates"
+  #   description: "Update human-facing documentation (README.md, etc.)."
+  #   instruction_file: "N-documentation-updates.md"
+  #   status: todo
+  #   complexity: 1
+  #   context_files:
+  #     - README.md
+  #   output_files: []
+  #   verification_commands: []
+  #   rollback_plan: "Revert documentation files via git checkout."

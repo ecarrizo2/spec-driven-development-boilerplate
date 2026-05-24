@@ -145,8 +145,8 @@ Commit **once per stage**, after the stage's verification checks pass. The seque
 
 1. Implement the stage's instructions.
 2. Run all verification checks from the stage's "Verification" section.
-3. If checks pass → update `manifest.json` (stage status to `done`, increment `current_stage`).
-4. **Commit all changes from this stage** (including the `manifest.json` update).
+3. If checks pass → update `manifest.yaml` (stage status to `done`, increment `current_stage`).
+4. **Commit all changes from this stage** (including the `manifest.yaml` update).
 5. Move on to the next stage.
 
 If verification fails and the agent fixes the issue, the fix is included in the same commit — there should be exactly **one commit per completed stage**.

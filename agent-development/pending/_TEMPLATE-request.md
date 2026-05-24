@@ -1,3 +1,16 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# Request Metadata (machine-parseable)
+# ─────────────────────────────────────────────────────────────────────────────
+id: null              # Sequential task number (e.g., 1, 2, 3)
+title: ""
+status: draft         # draft | refined | activated | planned | done
+complexity: null      # Fibonacci: 1 | 2 | 3 | 5 | 8 | 13
+depends_on: []        # Task IDs that must be done before this task
+created: null         # YYYY-MM-DD
+last_updated: null    # YYYY-MM-DD
+---
+
 # Task <N>: <Short Descriptive Title>
 
 ## Goal
@@ -12,9 +25,9 @@
 
 <!-- A bulleted list of concrete requirements. Each requirement should be verifiable — the implementing agent (or reviewer) should be able to confirm whether it was met or not. -->
 
-- Requirement 1
-- Requirement 2
-- Requirement 3
+- **R1.** ...
+- **R2.** ...
+- **R3.** ...
 
 ## Implementation Details
 
@@ -28,20 +41,25 @@
    - Detail 1
    - Detail 2
 
+## Edge Cases
+
+<!-- Known edge cases the implementation must handle. -->
+
+- ...
+
 ## Deliverables
 
 <!-- A checklist of tangible outputs. What files, features, or artifacts must exist when this task is done? -->
 
 - [ ] Deliverable 1
 - [ ] Deliverable 2
-- [ ] Deliverable 3
 
 ## Agent Checklist
 
 <!-- Verification steps the implementing agent must complete before marking this task as done. These should be concrete, runnable checks — not vague affirmations. -->
 
-- [ ] Check 1 (e.g., project compiles with zero errors)
-- [ ] Check 2 (e.g., unit tests pass)
-- [ ] Check 3 (e.g., `README.md` updated with new configuration options)
-- [ ] Update `agent-development/agent-specs/architecture-breakdown.md` if new modules, interfaces, directories, or significant files were introduced.
-- [ ] Update `README.md` with latest considerations.
+- [ ] Project compiles with zero errors
+- [ ] Unit tests pass
+- [ ] Linter passes with no new warnings
+- [ ] Update `agent-development/agent-specs/architecture-breakdown.md` if new modules, interfaces, directories, or significant files were introduced
+- [ ] Update `README.md` with latest considerations if user-facing behavior changed

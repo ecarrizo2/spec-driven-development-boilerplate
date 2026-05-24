@@ -1,68 +1,72 @@
 # Prompt: Plan a Task
 
-> **Usage:** Copy this prompt into a new agent conversation. Replace `<TASK_FILE>` with a reference to the pending request file (e.g., `@1-docker-infrastructure.md`).
+> **Usage:** Copy this prompt into a new agent conversation. Replace `<TASK_FILE>` with a reference to the pending request file (e.g., `@1-docker-infrastructure.md`). The agent produces a plan folder ready for human review.
 
 ---
 
-Familiarize yourself with the project context by reading all documents in `agent-development/agent-specs/`:
+## Input
 
-- `agent-development/agent-specs/agent-instructions.md`
-- `agent-development/agent-specs/agent-workflow.md`
-- `agent-development/agent-specs/application-overview.md`
-- `agent-development/agent-specs/architecture-breakdown.md`
-- `agent-development/agent-specs/git-workflow.md`
+**Task request to plan:** `agent-development/pending/<TASK_FILE>`
 
-Then, read the following task request:
+---
 
-**→ `<TASK_FILE>`**
+## Context to Read
 
-Using the request and the context you gathered, create a **detailed implementation plan** as a plan folder following the templates in `agent-development/plans/_templates/`.
+Before planning, read and internalize:
 
-## Plan Structure
+1. **Agent specs** — all files in `agent-development/agent-specs/`
+2. **The task request** — the file specified above (including YAML frontmatter)
+3. **Plan templates** — `agent-development/plans/_templates/manifest.yaml`, `specification.md`, `stage.md`
+4. **Status reference** — `user-development/STATUS-REFERENCE.md`
+5. **Relevant source code** — files/modules implied by the request's Implementation Details
 
-Each plan is a **folder** (not a single file) containing:
+---
 
-**For multi-stage plans** (2+ implementation stages):
+## Your Task
 
-```
-agent-development/plans/N-short-name/
-├── manifest.json        ← Authoritative record of task state, stages, and context
-├── specification.md     ← Human-readable plan overview (for review and approval)
-├── 1-stage-name.md      ← Stage 1 instructions for the implementing agent
-├── 2-stage-name.md      ← Stage 2 instructions
-├── ...                  ← As many stages as needed
-├── N-1-spec-updates.md  ← Separate penultimate stage: update agent-development/agent-specs/
-└── N-documentation-updates.md  ← Separate final stage: update README.md and human-facing docs
-```
+Produce a complete plan folder in `agent-development/plans/<N-task-name>/` containing:
 
-**For single-stage plans** (1 implementation stage):
+### 1. `manifest.yaml`
 
-```
-agent-development/plans/N-short-name/
-├── manifest.json        ← Authoritative record of task state, stages, and context
-├── specification.md     ← Human-readable plan overview (for review and approval)
-└── 1-stage-name.md      ← Single stage: implementation + inline spec/doc updates at the end
-```
+- Populate all fields from the template
+- Set `plan_metadata.status: pending-approval`
+- Set `plan_metadata.approval.status: pending`
+- Set `plan_metadata.complexity` from the request's frontmatter
+- Define stages with blast radius, verification commands, and rollback plans
+- Per-stage `complexity` using Fibonacci scale (1, 2, 3, 5, 8)
 
-See `agent-development/agent-specs/agent-workflow.md` for the full rules on when spec/doc updates are separate stages vs. inline steps.
+### 2. `specification.md`
+
+- Fill YAML frontmatter (plan_id, title, status: draft, approval.status: pending)
+- Populate all body sections from the template
+- Write thorough Open Questions for anything you cannot decide autonomously
+- Include the File Manifest with all files across all stages
+
+### 3. Stage instruction files
+
+- One file per stage following `stage.md` template
+- Step-by-step instructions with file paths, code snippets, shell commands
+- Explicit blast radius (read/write lists) per stage
+- Verification commands and rollback plan per stage
+
+---
 
 ## Rules
 
-1. **Read the source code directly** — the source code is the source of truth. Read the relevant files for the modules and areas you'll be planning changes to. Use `agent-development/agent-specs/architecture-breakdown.md` for quick orientation on the project layout if needed.
-2. **Check the current project state** — look at the existing directory structure, existing source files, dependency manifests (`package.json`, `tsconfig.json`, etc.), and any previously completed plans in `agent-development/done/plans/` to understand what has already been built. Your plan must build on top of the current state, not conflict with it.
-3. **Follow the templates exactly** — use the files in `agent-development/plans/_templates/` as your structural guide:
-   - `manifest.json` — copy and fill in all fields for your plan
-   - `specification.md` — the human-readable overview with open questions, file manifest, and post-completion checklist
-   - `stage.md` — the per-stage instruction template (copy once per stage)
+1. **Read the source code directly** — the source code is the source of truth. Read the relevant files for the modules and areas you'll be planning changes to. Use `agent-development/agent-specs/architecture-breakdown.md` for quick orientation.
+2. **Check the current project state** — look at the existing directory structure, existing source files, dependency manifests, and any previously completed plans in `agent-development/done/plans/` to understand what has already been built.
+3. **Follow the templates exactly** — use the files in `agent-development/plans/_templates/` as your structural guide.
 4. **Be exhaustive** — another AI agent will read the stage files and implement them. It will have no context beyond the stage file, the manifest, and the `agent-development/agent-specs/` documents. Every file to create/modify, every function signature, every shell command must be spelled out.
-5. **Name the plan folder** using the pattern `N-short-name` where `N` matches the task number from the request filename (e.g., task `1-docker-infrastructure.md` → plan folder `1-docker-infrastructure/`).
+5. **Name the plan folder** using the pattern `N-short-name` where `N` matches the task number from the request filename.
 6. **Save the plan folder** in `agent-development/plans/`.
-7. **Break large plans into stages** — each stage should be a focused, independently verifiable unit of work. If a stage feels "large" in complexity, consider splitting it. **Spec and doc updates** must always be included in every plan, but their form depends on plan size:
+7. **Break large plans into stages** — each stage should be a focused, independently verifiable unit of work. Spec and doc updates:
    - **Multi-stage plans (2+ implementation stages):** Add spec updates and documentation updates as **separate final stages** (penultimate and last).
-   - **Single-stage plans (1 implementation stage):** Include spec and doc updates as **final steps within the single stage** — do not create separate stages for them. This keeps small plans lightweight (1 stage, 1 commit).
-   - In either case, if no spec or doc updates are needed, state that explicitly (mark stages `skipped` or note "no changes needed" in the inline steps).
-8. **Populate the blast radius** in each stage file — explicitly list which files the implementing agent is allowed to read and write. This prevents agents from making unscoped changes. For single-stage plans with inline spec/doc updates, include the spec and doc files in the blast radius.
+   - **Single-stage plans (1 implementation stage):** Include spec and doc updates as **final steps within the single stage**.
+   - In either case, if no spec or doc updates are needed, state that explicitly.
+8. **Populate the blast radius** in each stage file — explicitly list which files the implementing agent is allowed to read and write.
 9. **Do NOT implement any code.** This prompt is only for planning.
+
+---
 
 ## Open Questions & Decisions (IMPORTANT)
 
@@ -73,4 +77,11 @@ The `specification.md` template includes an **"Open Questions & Decisions"** sec
 - **Give a recommendation** — state which option you'd choose and why, but mark the human decision as `PENDING`.
 - **If there are genuinely no open questions**, write "None — this plan is fully self-contained." and briefly explain why.
 
-The human will review the `specification.md` during the **approval process**. They will answer each question, and only then move the plan folder from `plans/` → `queued/` for execution. Do NOT assume answers to open questions — leave them for the human.
+The human will review the `specification.md` during the **approval process**. They will answer each question, then set `approval.status: approved` in `manifest.yaml`. Do NOT assume answers to open questions — leave them for the human.
+
+---
+
+## Output
+
+After saving, remind the human:
+> "Review `specification.md`, resolve any PENDING questions, then set `manifest.yaml` → `approval.status: approved` when ready to execute."

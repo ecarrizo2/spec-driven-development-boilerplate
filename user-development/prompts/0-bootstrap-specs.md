@@ -27,69 +27,65 @@ You will create or overwrite the following five files in `agent-development/agen
 
 **Purpose:** What the app does, who it's for, core workflows, key UX/DX goals, and what's out of scope.
 
-- Replace the example NestJS book-collection content entirely.
+- Replace the example content entirely.
 - Keep the same heading structure: Purpose, Core Workflows, Key UX Goals (or Key DX Goals), Out of Scope.
-- Remove the `THIS IS AN EXAMPLE` banner and replace with a banner that says the file was generated during project bootstrap and should be kept up to date.
+- Replace the `THIS IS AN EXAMPLE` banner with a banner that says the file was generated during project bootstrap and should be kept up to date.
 - Be specific — vague overviews produce vague agent output.
 
 ### 2. `architecture-breakdown.md`
 
 **Purpose:** Directory tree, folder descriptions, module dependency graph, design patterns, technology stack, key architectural decisions, and conventions.
 
-- If an existing codebase was provided, generate the directory tree from the **actual** file structure. Do not invent directories that don't exist.
-- If this is a greenfield project with no code yet, generate a **proposed** directory tree based on the tech stack and project description. Mark it clearly as proposed.
-- Keep the same heading structure as the example: Directory Tree, Folder Descriptions, Module Dependency Graph, Design Patterns, Technology Stack, Key Architectural Decisions, Key Conventions.
-- Remove the `THIS IS AN EXAMPLE` banner and replace with the bootstrap banner.
-- Include the `agent-development/` and `user-development/` directories in the tree — they are part of every SDD project.
+- If an existing codebase was provided, generate the directory tree from the **actual** file structure.
+- If this is a greenfield project, generate a **proposed** directory tree. Mark it clearly as proposed.
+- Keep the same heading structure as the example.
+- Include the `agent-development/` and `user-development/` directories in the tree.
 
 ### 3. `agent-instructions.md`
 
 **Purpose:** Coding standards, dos/don'ts, error handling, testing, naming conventions, and any stack-specific rules.
 
-- This file is a **starting point** that the developer will tweak over time. Keep the `THIS IS A STARTING POINT` banner.
-- Replace the "Your Role" section with the actual tech stack.
-- Replace the "Dos and Don'ts" section with rules appropriate to the project's language and framework. Keep sensible defaults (e.g., prefer strict typing, no `console.log` for production logging) and add framework-specific rules.
-- Replace "Error Handling", "Testing", "File & Naming Conventions", and "Docker & Local Development" sections with content appropriate to the project. Remove sections that don't apply (e.g., remove Docker section if the project doesn't use Docker).
-- Keep the `👆 TWEAK THIS` comment banners — they remind the developer to customize further.
-- Keep the "Relationship to Other Spec Files" table at the bottom.
+- This file is a **starting point** that the developer will tweak over time.
+- Replace content sections with rules appropriate to the project's language and framework.
+- Keep sensible defaults and add framework-specific rules.
 
 ### 4. `agent-workflow.md`
 
 **Purpose:** Execution rules — how agents interact with plans, stages, blast radius, commits, spec/doc update handling, etc.
 
-- This file is **system-level** and typically does NOT need customization per project. It defines how the SDD pipeline works, not how your code should be written.
-- **Copy the existing file as-is** unless the developer's project description explicitly calls for workflow changes. Do not modify it unless asked.
+- This file is **system-level** and typically does NOT need customization per project.
+- **Copy the existing file as-is** unless the developer explicitly calls for workflow changes.
 - If the existing file already has the correct content, confirm it is unchanged and skip this file.
 
 ### 5. `git-workflow.md`
 
 **Purpose:** Branching strategy, commit conventions, ticket ID pattern, versioning expectations.
 
-- This file is a **starting point** that the developer tweaks to match their team's conventions. Keep the `THIS IS A STARTING POINT` banner (or the existing `TWEAK THIS` banner).
-- Update the ticket ID regex pattern if the developer specifies their issue tracker format.
-- Update branch naming examples to match the project name (e.g., replace `PROJ-123` with their prefix).
-- If the developer doesn't specify any git preferences, keep the defaults — they are sensible.
+- This file is a **starting point** that the developer tweaks.
+- Update the ticket ID regex pattern if specified.
+- Update branch naming examples to match the project.
+- If no git preferences specified, keep the defaults.
 
 ## Rules
 
 1. **Generate all five files** (or confirm `agent-workflow.md` is unchanged). Do not skip any.
-2. **Match the level of detail** shown in the example files. Agents perform better with explicit, specific content. A one-paragraph application overview or a three-line architecture breakdown will produce poor results downstream.
-3. **Be accurate** — if you read existing source code, the specs must reflect the actual state of the code. Do not describe modules, files, or patterns that don't exist. If the project is greenfield, clearly mark proposed structure as proposed.
-4. **Preserve heading structure** — other files in the SDD system reference these spec files by heading. Changing the heading hierarchy will break cross-references in prompts and templates.
-5. **Do NOT generate plans, requests, or any code.** This prompt is only for bootstrapping the spec files.
-6. **Do NOT delete** the example files in `agent-development/done/` — those serve as reference for how completed plans and requests should look, regardless of your project's tech stack.
+2. **Match the level of detail** shown in the example files.
+3. **Be accurate** — specs must reflect actual state of the code.
+4. **Preserve heading structure** — other files reference these by heading.
+5. **Do NOT generate plans, requests, or any code.** This prompt is only for bootstrapping spec files.
+6. **Do NOT delete** the example files in `agent-development/done/`.
 7. **Do NOT modify** any files outside of `agent-development/agent-specs/`.
 
 ## After Generation
 
 Once all files are generated, provide a summary:
 
-- 📄 Files created or updated (list each with a one-line description of what's in it)
-- ⚠️ Anything you were unsure about or had to guess (the developer should review these)
-- 🔜 Recommended next steps (typically: review the generated specs, then create your first task request using `user-development/prompts/3-request-feature.md`)
+- 📄 Files created or updated (list each with a one-line description)
+- ⚠️ Anything you were unsure about or had to guess
+- 🔜 Recommended next steps (typically: review the generated specs, then create your first task request using `user-development/prompts/3-create-request.md`)
 
 ## Notes
 
-- The developer may run this prompt multiple times as their understanding of the project evolves. Each run overwrites the previous specs.
-- If the developer provides both a project description AND an existing codebase, the codebase takes precedence where they conflict. Flag the conflicts in your summary.
-- The example pending requests in `agent-development/pending/` (1-docker-infrastructure.md, 2-config-and-dotenv.md, 3-makefile-and-dev-commands.md) are NestJS-specific examples. Remind the developer to delete or replace them if they don't apply to their stack.
+- The developer may run this prompt multiple times. Each run overwrites the previous specs.
+- If both a project description AND existing codebase are provided, the codebase takes precedence where they conflict. Flag the conflicts.
+- The example pending requests in `agent-development/pending/` are NestJS-specific. Remind the developer to delete or replace them if they don't apply.

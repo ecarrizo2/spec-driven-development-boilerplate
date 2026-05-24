@@ -126,10 +126,9 @@ my-project/
 │   │   └── _TEMPLATE-request.md
 │   ├── plans/
 │   │   └── _templates/                     ← Templates for creating new plan folders
-│   │       ├── manifest.json               ← Task state, stages, context tracking
+│   │       ├── manifest.yaml               ← Task state, stages, context tracking
 │   │       ├── specification.md            ← Human-readable plan overview
 │   │       └── stage.md                    ← Per-stage instruction template
-│   ├── queued/                             ← Approved plan folders ready for execution
 │   └── done/
 │       ├── plans/                          ← Executed plan folders (archive)
 │       ├── requests/
@@ -163,7 +162,6 @@ my-project/
 - `/test/`: End-to-end tests using `@nestjs/testing` and `supertest`. Each feature module has a corresponding `.e2e-spec.ts` file.
 - `/docker/`: Dockerfiles for app and supporting services. `Dockerfile` (app), `docker-compose.yml`, and any init scripts for databases or queues.
 - `/user-development/`: Human-facing development assets — prompt templates and the development guide.
-- `/agent-development/`: Agent-facing pipeline — pending requests, plans, queued/done work, specs, and templates.
 - `/agent-development/agent-specs/`: Project-level specifications (this file, `application-overview.md`, `agent-instructions.md`, `agent-workflow.md`, and `git-workflow.md`). Read-only context for every agent conversation. `agent-instructions.md` contains coding standards (customized per project); `agent-workflow.md` contains SDD execution rules (system-level, rarely customized).
 
 ---

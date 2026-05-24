@@ -21,12 +21,12 @@
 These steps apply to every plan execution, regardless of size:
 
 1. **Verify your branch** — run `git branch --show-current` to confirm you are on a feature branch (not `main`). Extract the ticket ID from the branch name if present. See `agent-development/agent-specs/git-workflow.md` for branch naming conventions and ticket ID detection.
-2. Read the provided plan folder — start with `manifest.json` for task state and stage overview, then `specification.md` for the full context and resolved open questions.
+2. Read the provided plan folder — start with `manifest.yaml` for task state and stage overview, then `specification.md` for the full context and resolved open questions.
 3. For each stage, read the stage's instruction file (e.g., `1-stage-name.md`) and the source code files listed in its "Allowed Read Access" section. Use `agent-development/agent-specs/architecture-breakdown.md` for quick orientation if needed.
 4. Implement the logic, respecting the stage's blast radius — only modify files listed in "Allowed Write Access."
 5. Run the verification commands listed in the stage's "Verification" section.
-6. After each stage passes, update `manifest.json`: set the stage's `status` to `done` and increment `current_stage`.
-7. **Commit the stage** — commit all changes from this stage (including the `manifest.json` update) using a conventional commit message. See `agent-development/agent-specs/git-workflow.md` for the commit message format.
+6. After each stage passes, update `manifest.yaml`: set the stage's `status` to `done` and increment `current_stage`.
+7. **Commit the stage** — commit all changes from this stage (including the `manifest.yaml` update) using a conventional commit message. See `agent-development/agent-specs/git-workflow.md` for the commit message format.
 8. **Spec and doc updates** — every plan must include spec and doc updates. How they are structured depends on plan size (see [Spec & Doc Updates](#spec--doc-updates) below). Do not skip these unless the plan explicitly states no changes are needed.
 9. After all stages are complete, **perform archive file moves** and make a **separate commit**: `chore: <ticket-id> archive completed plan and request`. See [Post-Completion](#post-completion) for details.
 
@@ -51,7 +51,7 @@ If you discover mid-stage that you need to read or modify a file not in the blas
 
 1. **Stop implementation.**
 2. Update the stage's instruction file to add the file to the appropriate access list with a reason.
-3. Update `manifest.json` to reflect the new context or output file.
+3. Update `manifest.yaml` to reflect the new context or output file.
 4. Then proceed with the implementation.
 
 Never silently access files outside the blast radius.
@@ -99,7 +99,7 @@ When spec/doc updates are needed, here is what to consider:
 
 After all stages are complete (including any spec/doc stages or inline steps):
 
-1. **Update `manifest.json`:**
+1. **Update `manifest.yaml`:**
    - Set `plan_metadata.status` to `done`
    - Set `current_stage` to `total_stages`
    - Confirm all stage statuses are `done` (or `skipped` with justification)
@@ -107,8 +107,8 @@ After all stages are complete (including any spec/doc stages or inline steps):
 2. **Run the post-completion checklist** from `specification.md`. Verify every item.
 
 3. **Perform file moves:**
-   - **Move the plan folder:** `agent-development/queued/<plan-folder>/` → `agent-development/done/plans/<plan-folder>/`
-   - **Move the matching request:** `agent-development/pending/<N>-<name>.md` → `agent-development/done/requests/<N>-<name>.md` (match by `task_id` in `manifest.json`)
+   - **Move the plan folder:** `agent-development/plans/<plan-folder>/` → `agent-development/done/plans/<plan-folder>/`
+   - **Move the matching request:** `agent-development/pending/<N>-<name>.md` → `agent-development/done/requests/<N>-<name>.md` (match by `task_id` in `manifest.yaml`)
 
 4. **Commit the archive moves** as a separate commit:
    ```
@@ -120,7 +120,7 @@ After all stages are complete (including any spec/doc stages or inline steps):
 
 If execution is interrupted mid-plan (context window limit, agent crash, human pause):
 
-1. The next agent conversation reads `manifest.json` to find `current_stage`.
+1. The next agent conversation reads `manifest.yaml` to find `current_stage`.
 2. Stages already marked `done` are **not re-executed**.
 3. The agent picks up from the current stage and continues in order.
 4. Git history confirms what has been committed — the agent can run `git log --oneline` to verify.
