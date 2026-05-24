@@ -6,9 +6,12 @@ id: null              # Sequential task number (e.g., 1, 2, 3)
 title: ""
 status: draft         # draft | refined | activated | planned | done
 complexity: null      # Fibonacci: 1 | 2 | 3 | 5 | 8 | 13
+jira_ticket: null     # e.g., PROJ-123 — filled after ticket creation
+epic: null            # Path to epic.md (e.g., "../../epics/active/1-feature-name/epic.md"), or "standalone"
 depends_on: []        # Task IDs that must be done before this task
 created: null         # YYYY-MM-DD
 last_updated: null    # YYYY-MM-DD
+api_checkpoint: false # true if this task changes observable API behavior (endpoints, response shapes)
 ---
 
 # Task <N>: <Short Descriptive Title>
@@ -43,7 +46,7 @@ last_updated: null    # YYYY-MM-DD
 
 ## Edge Cases
 
-<!-- Known edge cases the implementation must handle. -->
+<!-- Known edge cases the implementation must handle. Added during refinement (Prompt 7). -->
 
 - ...
 

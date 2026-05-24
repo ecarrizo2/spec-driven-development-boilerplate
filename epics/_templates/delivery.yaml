@@ -1,0 +1,92 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Delivery Manifest: <EPIC_NAME>
+# ─────────────────────────────────────────────────────────────────────────────
+# Defines the PR tree, merge order, and execution status for an epic.
+# Created when the first task is activated. Updated throughout execution.
+#
+# This file lives in: sdd/epics/active/N-epic-name/delivery.yaml
+# It is the single source of truth for PR structure and merge coordination.
+# ─────────────────────────────────────────────────────────────────────────────
+
+metadata:
+  epic_id: null
+  epic_title: ""
+  base_branch: "main"             # From sdd/config/teams.yaml
+  branching_strategy: independent  # independent | stacked
+  strategy_rationale: ""
+  created: null                    # YYYY-MM-DD
+  last_updated: null               # YYYY-MM-DD
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PR DAG — each node represents one Pull Request
+# ─────────────────────────────────────────────────────────────────────────────
+nodes: []
+# Example node:
+#   - id: "pr-1"
+#     task_id: 1                   # References task ID in task-graph.md
+#     title: ""                    # PR title (conventional commit format)
+#     branch: null                 # e.g., feat/PROJ-123-add-user-notifications
+#     base: "main"                 # What this PR targets (main, or predecessor PR branch if stacked)
+#     depends_on: []               # Other PR node IDs that must merge first
+#     status: planned              # planned | branched | draft-pr | in-progress | ready-for-review | merged | abandoned
+#     pr_url: null                 # Filled after PR is created (e.g., https://github.com/org/repo/pull/123)
+#     pr_number: null              # Filled after PR is created
+#     how_to_verify: |
+#       # Verification instructions for reviewer
+#       # Include curl commands, GraphQL queries, or manual test steps
+#     stages_included: []          # Which plan stages contribute to this PR (e.g., [1, 2])
+#     notes: ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Merge Order
+# Derived from depends_on edges. Groups can merge in parallel within a group.
+# ─────────────────────────────────────────────────────────────────────────────
+merge_order: []
+# Example:
+#   - group: 1
+#     description: "Independent — can merge in any order"
+#     nodes: ["pr-1", "pr-2"]
+#   - group: 2
+#     description: "After group 1 merges"
+#     nodes: ["pr-3"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Branching Strategy Reference
+# ─────────────────────────────────────────────────────────────────────────────
+# independent (default):
+#   Every task branches off base_branch. When a task depends on a predecessor
+#   that hasn't merged yet, develop locally rebasing on predecessor's branch.
+#   Once predecessor merges, rebase onto base_branch for a clean diff.
+#   The PR always targets base_branch.
+#   Pros: Clean PR diffs, simple CI, PRs are self-contained.
+#   Cons: May need rebases; dependent tasks can't have clean PR until predecessor merges.
+#
+# stacked:
+#   Dependent tasks branch off their predecessor's branch. PRs initially target
+#   the predecessor branch, then retarget base_branch after predecessor merges.
+#   Pros: Work starts immediately; no cherry-picking needed.
+#   Cons: PR diffs show accumulated changes; if predecessor is rejected, stack is affected.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Negotiations Impact
+# When task-graph negotiations affect delivery (PRs added/cancelled/resequenced),
+# record the impact here with a reference to the negotiation ID in task-graph.md.
+# ─────────────────────────────────────────────────────────────────────────────
+negotiation_impacts: []
+# Example:
+#   - negotiation_ref: "neg-1"    # References negotiations[] in task-graph.md
+#     date: 2026-05-20
+#     impact: "Added pr-5 for new mobile variant task"
+#     nodes_added: ["pr-5"]
+#     nodes_removed: []
+#     nodes_resequenced: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Incidents & Notes
+# Record anything notable: rebases, blocked PRs, CI failures, reviewer feedback.
+# ─────────────────────────────────────────────────────────────────────────────
+incidents: []
+# Example:
+#   - date: 2026-05-20
+#     description: "PR #123 had merge conflicts after pr-1 merged"
+#     resolution: "Rebased onto main, resolved conflicts in component.tsx"

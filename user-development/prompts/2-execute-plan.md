@@ -1,76 +1,89 @@
 # Prompt: Execute an Approved Plan
 
-> **Usage:** Copy this prompt into a new agent conversation. Replace `<PLAN_FOLDER>` with a reference to the approved plan folder in `plans/` (e.g., `@1-docker-infrastructure`).
+> **Usage:** Copy this prompt into a new agent conversation. Point it at an approved plan folder. The agent creates the branch, opens a draft PR, and executes stages progressively.
 
 ---
 
 ## Input
 
-**Plan folder:** `agent-development/plans/<PLAN_FOLDER>/`
+**Plan folder:** `agent-development/plans/<N-task-name>/`
 
 ---
 
-## Before Starting
+## Context to Read
 
-1. **Read all spec documents** in `agent-development/agent-specs/`:
-   - `agent-development/agent-specs/agent-instructions.md`
-   - `agent-development/agent-specs/agent-workflow.md`
-   - `agent-development/agent-specs/application-overview.md`
-   - `agent-development/agent-specs/architecture-breakdown.md`
-   - `agent-development/agent-specs/git-workflow.md`
+Before executing, read:
 
-2. **Read the plan:**
-   - `manifest.yaml` — authoritative record of task state, stages, and approval.
-   - `specification.md` — human-readable overview with context, open questions, and file manifest.
-
-3. **Check `manifest.yaml` → `plan_metadata.approval.status`** — it must equal `approved`. If not, **STOP** and report that the plan has not been approved yet.
-
-4. **Check the "Open Questions & Decisions" section** in `specification.md`. If any question still says `PENDING`, **STOP** and report which questions are unresolved. Do not execute a plan with pending decisions. Treat resolved human decisions as **binding requirements**.
-
-5. **Check `manifest.yaml` for `current_stage`** — if execution was previously interrupted, resume from the current stage rather than starting over. Stages already marked `done` should not be re-executed.
+1. **Agent specs** — all files in `agent-development/agent-specs/`
+2. **Team config** — `config/teams.yaml` (branching conventions, co-author)
+3. **The plan** — `manifest.yaml` and `specification.md` in the plan folder
+4. **Status reference** — `user-development/STATUS-REFERENCE.md`
+5. **If part of an epic:** the `delivery.yaml` in the epic folder
 
 ---
 
-## Execution
+## Pre-Flight Checks
 
-Follow the workflow defined in `agent-development/agent-specs/agent-workflow.md`. That file is the authoritative reference for:
+Before writing any code:
 
-- How to execute stages in order
-- Blast radius enforcement (which files you may read and write)
-- When and how to update `manifest.yaml`
-- When and how to commit (one commit per stage, conventional commit format)
-- How spec/doc updates are handled (inline for single-stage plans, separate stages for multi-stage plans)
-- Post-completion file moves and archive commit
-
-Execute stages **in order**, one at a time. For each stage:
-1. Read its instruction file
-2. Follow the instructions exactly
-3. Run verification commands
-4. Update `manifest.yaml` (stage status → `done`, increment `current_stage`)
-5. Commit with conventional commit format
-
-Do not add features, refactor code, or make architectural decisions that aren't in the stage instructions.
-
-If a verification check fails, fix the issue and retry (max 2 attempts per check). If it still fails, report the failure clearly, set the stage's status to `failed` in `manifest.yaml`, follow the stage's rollback plan, and continue to the next stage only if it doesn't depend on the failed one.
+1. Verify `manifest.yaml` → `plan_metadata.approval.status == "approved"`
+2. Verify no `PENDING` markers remain in `specification.md`
+3. Read `config/teams.yaml` for branch naming and commit conventions
+4. Create the feature branch following the naming format in teams.yaml
+5. Open a **draft PR** — first commit can be a reference to the plan (or empty commit with plan summary in body)
 
 ---
 
-## After All Stages Complete
+## Execution Protocol
 
-1. Update `manifest.yaml`: set `plan_metadata.status: done`
-2. Archive: move plan folder → `agent-development/done/plans/`
-3. Archive: move request → `agent-development/done/requests/`
-4. Final commit: `chore: archive completed plan and request`
+For each stage (in order):
+
+1. **Read** the stage instruction file
+2. **Present the commit plan** to me — show the table of planned commits before writing code
+3. **Wait for my approval** of the commit plan
+4. **Execute commit units** one at a time:
+   - Implement the change
+   - Run verification commands (lint, typecheck, tests as appropriate)
+   - If pass → commit with conventional commit message + co-author trailer
+   - If fail → fix (max 2 retries) or STOP
+5. **API Checkpoint** — if stage has `api_checkpoint: true`:
+   - Provide the curl/GraphQL command from the stage instructions
+   - STOP and wait for my confirmation before proceeding
+6. **After all commits in stage pass** → update `manifest.yaml` (stage status: `done`, increment current_stage)
+7. **Push to branch** — the draft PR updates automatically
+
+After ALL stages complete:
+
+1. Run full verification (build + test + lint + typecheck)
+2. Mark PR as **ready for review** (no longer draft)
+3. Update `manifest.yaml`: `plan_metadata.status: done`
+4. Archive: move plan folder to `done/plans/`, request to `done/requests/`
+5. Final commit: `chore: <ticket-id> archive completed plan and request`
+6. If epic task: update `delivery.yaml` node status to `ready-for-review`
+7. If epic task: update `task-graph.md` task status to `done`
 
 ---
 
-## Final Report
+## Rules
 
-After all stages are complete and archive moves are done, provide a short summary:
+- Do NOT write code before I approve the commit plan
+- Do NOT skip verification steps
+- Do NOT modify files outside the stage's blast_radius.write
+- Do NOT force-push to the branch
+- Do NOT merge the PR — humans merge manually
+- Multiple commits per stage are expected and encouraged
+- If you discover something unexpected, classify it (info/question/blocker) and handle per `agent-workflow.md`
 
-- ✅ Stages completed (list each with its name and status)
-- 🔑 Open questions — list each resolved question and the human decision that was applied
-- ⚠️ Warnings or issues encountered (even if resolved)
-- 📁 Files created or modified (aggregate across all stages)
-- 🔀 Files moved (plan folder and request)
-- 🔖 Commits made (list each commit message)
+---
+
+## Discovery Handling
+
+If you encounter something unexpected:
+
+| Severity | Action |
+|---|---|
+| `info` | Log in manifest.yaml amendments, continue |
+| `question` | Log in manifest.yaml, use safe default, flag for async review |
+| `blocker` | Log in manifest.yaml, set status to `paused`, STOP and wait |
+
+For blockers: I'll edit the manifest with my decision, then resume with this same prompt.

@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# pre-commit hook — Validates SDD manifests before commit
+# ─────────────────────────────────────────────────────────────────────────────
+# Install: copy to .git/hooks/pre-commit or configure via lefthook/husky
+# Only runs validation on staged SDD files (yaml/md with frontmatter).
+# ─────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+# Find the bin/dev script relative to this hook
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Try to find bin/dev — could be in different locations depending on install method
+if [[ -f "${HOOK_DIR}/../../sdd/bin/dev" ]]; then
+  BIN_DEV="${HOOK_DIR}/../../sdd/bin/dev"
+elif [[ -f "${HOOK_DIR}/../bin/dev" ]]; then
+  BIN_DEV="${HOOK_DIR}/../bin/dev"
+else
+  # Try from git repo root
+  REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+  if [[ -f "${REPO_ROOT}/sdd/bin/dev" ]]; then
+    BIN_DEV="${REPO_ROOT}/sdd/bin/dev"
+  elif [[ -f "${REPO_ROOT}/bin/dev" ]]; then
+    BIN_DEV="${REPO_ROOT}/bin/dev"
+  else
+    # Can't find bin/dev — skip silently
+    exit 0
+  fi
+fi
+
+# Get staged SDD files
+staged_sdd_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^sdd/.*\.(yaml|yml|md)$' || true)
+
+if [[ -z "${staged_sdd_files}" ]]; then
+  # No SDD files staged — skip
+  exit 0
+fi
+
+# Run validation on staged SDD files
+echo "🔍 Validating SDD manifests..."
+if ! "${BIN_DEV}" wf:validate ${staged_sdd_files}; then
+  echo ""
+  echo "❌ Commit blocked: SDD manifest validation failed"
+  echo "   Fix the errors above and try again."
+  exit 1
+fi

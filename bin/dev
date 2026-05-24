@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# bin/dev — SDD Agent CLI Helper
+# ─────────────────────────────────────────────────────────────────────────────
+# Single entry point for all agent-facing operations.
+# Run `bin/dev help` to see available commands.
+#
+# Design principles:
+#   1. Portable — works in any project with sdd/ boilerplate
+#   2. Fail-safe — rejects unknown commands
+#   3. Auditable — logs every invocation
+#   4. Growable — add commands by adding scripts to bin/commands/
+# ─────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+# Resolve the directory this script lives in (handles symlinks)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMMANDS_DIR="${SCRIPT_DIR}/commands"
+# bin/dev lives at sdd/bin/dev, so project root is two levels up
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+SDD_DIR="${SCRIPT_DIR}/.."
+
+# Source shared utilities
+source "${COMMANDS_DIR}/_common.sh"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Audit logging (gitignored)
+# ─────────────────────────────────────────────────────────────────────────────
+AUDIT_LOG="${SDD_DIR}/.agent-audit-log"
+
+_log_audit() {
+  local timestamp command_name args exit_code
+  timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  command_name="${1:-}"
+  args="${2:-}"
+  exit_code="${3:-0}"
+  echo "[${timestamp}] [exit:${exit_code}] bin/dev ${command_name} ${args}" >> "${AUDIT_LOG}" 2>/dev/null || true
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Built-in: help
+# ─────────────────────────────────────────────────────────────────────────────
+_show_help() {
+  cat <<'EOF'
+┌─────────────────────────────────────────────────────────────┐
+│  bin/dev — SDD Agent CLI Helper                             │
+└─────────────────────────────────────────────────────────────┘
+
+USAGE:
+  bin/dev <command> [arguments...]
+
+CORE:
+  help                          Show this help message
+  version                       Show SDD boilerplate version
+
+BUILD & VERIFY:
+  build                         Compile/build the project
+  lint                          Run linter (check only, no writes)
+  lint:fix                      Run linter with auto-fix
+  typecheck                     Run type checker (no emit)
+  test [files...]               Run tests (optionally scoped to files)
+  test:cov                      Run tests with coverage report
+  verify [files...]             Fast loop: lint + typecheck + test (scoped)
+  verify:full                   Full suite: build + lint + typecheck + test
+
+GIT FLOW:
+  branch <type> <ticket> <desc> Create a branch following conventions
+  branch:check                  Validate current branch name
+  pr:draft [title]              Open a draft PR for current branch
+  pr:ready                      Promote draft PR to ready-for-review
+  pr:status                     Show PR status for current branch
+
+REVIEW:
+  review <pr-number> [--no-diff] Structured review packet for a PR
+
+WORKFLOW:
+  wf:status                     Show status of epics, tasks, and plans
+  wf:validate [files...]        Validate YAML manifests and frontmatter
+  wf:next                       Show next approved plan(s) ready to execute
+  wf:blockers                   List open questions and pending amendments
+  wf:archive <epic> [--dry-run] Archive a completed epic to done/
+
+REVIEW:
+  review <pr-number> [--no-diff] Produce structured review packet for a PR
+
+AGENT NOTES:
+  note [--type=TYPE] "message"  Record a discovery/suggestion
+  note:read [n]                 Show last N agent notes
+  note:clear                    Archive and clear notes
+
+CONFIGURATION:
+  Commands are mapped in: sdd/config/commands.yaml
+  Team settings live in:  sdd/config/teams.yaml
+
+Add new commands by creating scripts in bin/commands/
+See bin/README.md for the full growth protocol.
+EOF
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Built-in: version
+# ─────────────────────────────────────────────────────────────────────────────
+_show_version() {
+  local version_file="${SDD_DIR}/VERSION"
+  if [[ -f "${version_file}" ]]; then
+    echo "SDD Boilerplate v$(cat "${version_file}")"
+  else
+    echo "SDD Boilerplate (version not set — create sdd/VERSION)"
+  fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Command dispatcher
+# ─────────────────────────────────────────────────────────────────────────────
+main() {
+  local command="${1:-help}"
+  shift 2>/dev/null || true
+
+  # Handle built-in commands
+  case "${command}" in
+    help|--help|-h)
+      _show_help
+      return 0
+      ;;
+    version|--version|-v)
+      _show_version
+      return 0
+      ;;
+  esac
+
+  # Normalize command name: replace ":" with "-" for file lookup
+  local command_file="${command//:/-}"
+  local script_path="${COMMANDS_DIR}/${command_file}.sh"
+
+  # Check if command exists
+  if [[ ! -f "${script_path}" ]]; then
+    log_error "Unknown command: ${command}"
+    echo ""
+    echo "Run 'bin/dev help' to see available commands."
+    echo "To add this command, create: bin/commands/${command_file}.sh"
+    _log_audit "${command}" "$*" 127
+    return 127
+  fi
+
+  # Execute the command
+  _log_audit "${command}" "$*" "..."
+  local exit_code=0
+  source "${script_path}" "$@" || exit_code=$?
+
+  # Log result
+  _log_audit "${command}" "$*" "${exit_code}"
+
+  return ${exit_code}
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Entry point
+# ─────────────────────────────────────────────────────────────────────────────
+main "$@"
