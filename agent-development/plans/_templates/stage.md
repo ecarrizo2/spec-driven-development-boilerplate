@@ -37,7 +37,7 @@
 
 ## Prerequisites
 
-- [ ] Stage [N-1] is marked `done` in `manifest.yaml`
+- [ ] Stage [N-1] is marked `done` in `manifest.json`
 - [ ] Any other prerequisite condition
 
 ---
@@ -84,8 +84,8 @@
 
 Review the following files and update them if this stage introduced any architectural, structural, or convention changes:
 
-- `agent-development/agent-specs/architecture-breakdown.md` — new directories, modules, dependency changes, tech stack updates
-- `agent-development/agent-specs/agent-instructions.md` — new coding standards or dos/don'ts discovered during implementation
+- `sdd/agent-development/agent-specs/architecture-breakdown.md` — new directories, modules, dependency changes, tech stack updates
+- `sdd/agent-development/agent-specs/agent-instructions.md` — new coding standards or dos/don'ts discovered during implementation
 
 If no changes are needed, note "Reviewed — no spec updates required" and move on.
 
@@ -110,8 +110,8 @@ If no changes are needed, note "Reviewed — no documentation updates required" 
 
 | Command | Expected Result |
 |---|---|
-| `yarn build` | Exit code 0, no type errors |
-| `yarn test --filter [scope]` | All tests pass |
+| `pnpm run build` | Exit code 0, no type errors |
+| `pnpm test --filter [scope]` | All tests pass |
 
 ### Manual Verification
 
@@ -127,13 +127,13 @@ If no changes are needed, note "Reviewed — no documentation updates required" 
 
 ## Commit
 
-After all verification checks pass and `manifest.yaml` has been updated for this stage:
+After all verification checks pass and `manifest.json` has been updated for this stage:
 
-1. Stage all changes from this stage (including the `manifest.yaml` update).
+1. Stage all changes from this stage (including the `manifest.json` update).
 2. Commit using [Conventional Commits](https://www.conventionalcommits.org/) format.
 3. Choose the commit type based on what this stage actually does (`feat`, `fix`, `test`, `docs`, `refactor`, etc.).
 4. Include the ticket ID if one was detected in the branch name.
-5. See `agent-development/agent-specs/git-workflow.md` for the full commit message format.
+5. See `sdd/agent-development/agent-specs/git-workflow.md` for the full commit message format.
 
 **Suggested commit message:**
 <!-- The planning agent should fill this in with a recommended commit message for this stage. Example: -->
@@ -149,7 +149,7 @@ If this stage fails or must be reverted:
 
 1. Specific step to undo changes (e.g., "Delete `path/to/new-file.ts`")
 2. Specific step (e.g., "Revert `path/to/existing-file.ts` via `git checkout`" or `git revert <commit>`)
-3. Set this stage's `status` to `failed` in `manifest.yaml`
+3. Set this stage's `status` to `failed` in `manifest.json`
 
 ---
 

@@ -26,13 +26,13 @@ Before starting, the implementing agent **must** read and internalize these file
 
 | Document | Path | Purpose |
 |---|---|---|
-| Application Overview | `agent-development/agent-specs/application-overview.md` | Understand what the app does |
-| Architecture Breakdown | `agent-development/agent-specs/architecture-breakdown.md` | Folder structure, design patterns, tech stack |
-| Agent Instructions | `agent-development/agent-specs/agent-instructions.md` | Coding standards, dos/don'ts, naming, testing |
-| Agent Workflow | `agent-development/agent-specs/agent-workflow.md` | Execution rules, blast radius, commit timing |
-| Git Workflow | `agent-development/agent-specs/git-workflow.md` | Branching, commit conventions, versioning |
-| Task Definition | `agent-development/pending/<N>-<name>.md` | The task being implemented |
-<!-- Add any other relevant reference files -->
+| Application Overview | `sdd/agent-development/agent-specs/application-overview.md` | Understand what the app does |
+| Architecture Breakdown | `sdd/agent-development/agent-specs/architecture-breakdown.md` | Folder structure, design patterns, tech stack |
+| Agent Instructions | `sdd/agent-development/agent-specs/agent-instructions.md` | Coding standards, dos/don'ts, naming, testing |
+| Agent Workflow | `sdd/agent-development/agent-specs/agent-workflow.md` | Execution rules, blast radius, commit timing |
+| Git Workflow | `sdd/agent-development/agent-specs/git-workflow.md` | Branching, commit conventions, versioning |
+| Task Definition | `sdd/agent-development/pending/<N>-<name>.md` | The task being implemented |
+<!-- Add any other relevant reference files (existing source files, previous plans, etc.) -->
 
 ---
 
@@ -52,7 +52,7 @@ Before starting, the implementing agent **must** read and internalize these file
   Human-readable summary of the work breakdown.
   Detailed step-by-step instructions live in separate stage files.
   The manifest.yaml is the authoritative record of stage state.
-
+  
   SINGLE-STAGE PLANS: Spec/doc updates are inline at the end of the single stage.
   MULTI-STAGE PLANS: Spec/doc updates are separate final stages.
   See agent-workflow.md for full rules.
@@ -62,6 +62,7 @@ Before starting, the implementing agent **must** read and internalize these file
 
 **Complexity:** _Fibonacci (1-8)_
 **Instruction file:** `1-stage-name.md`
+**API Checkpoint:** _yes / no_
 
 <!-- Brief description of what this stage does and why it's a discrete unit. -->
 
@@ -75,7 +76,9 @@ Before starting, the implementing agent **must** read and internalize these file
 **Complexity:** 1
 **Instruction file:** `N-1-spec-updates.md`
 
-Update `agent-development/agent-specs/` files to reflect any architectural, structural, or convention changes introduced by this plan.
+Update `sdd/agent-development/agent-specs/` files to reflect any architectural, structural, or convention changes introduced by this plan.
+
+<!-- Describe which spec files are impacted. If no changes needed, state explicitly. -->
 
 ---
 
@@ -86,16 +89,18 @@ Update `agent-development/agent-specs/` files to reflect any architectural, stru
 
 Update human-facing documentation to reflect changes introduced by this plan.
 
+<!-- Describe which docs are impacted. If no changes needed, state explicitly. -->
+
 ---
 
 ## Open Questions & Decisions
 
 <!--
   MANDATORY SECTION. Captures ambiguities requiring human input before execution.
-
+  
   During APPROVAL: the human reviewer reads each question, writes their decision
   inline (replacing PENDING), and sets frontmatter approval.status to "approved".
-
+  
   The executing agent verifies no PENDING markers remain before starting.
   If there are genuinely no open questions, write:
   "None — this plan is fully self-contained." and explain briefly why.
@@ -130,11 +135,11 @@ Update human-facing documentation to reflect changes introduced by this plan.
 - [ ] All stage `status` fields in `manifest.yaml` are `done` (or `skipped` with justification)
 - [ ] All verification commands from every stage pass
 - [ ] No unrelated files were modified outside blast radius
-- [ ] `agent-development/agent-specs/` files are up to date
+- [ ] `sdd/agent-development/agent-specs/` files are up to date
 - [ ] `README.md` and relevant docs are up to date
 - [ ] Plan `status` in manifest.yaml updated to `done`
-- [ ] Plan folder archived to `agent-development/done/plans/`
-- [ ] Request archived to `agent-development/done/requests/`
+- [ ] Plan folder archived to `sdd/agent-development/done/plans/`
+- [ ] Request archived to `sdd/agent-development/done/requests/`
 
 ---
 
@@ -143,6 +148,6 @@ Update human-facing documentation to reflect changes introduced by this plan.
 1. The source code is the source of truth — read it directly.
 2. Execute stages in order. Do not start a stage until its predecessor is `done` in manifest.yaml.
 3. After completing each stage, update its `status` in manifest.yaml and set `current_stage` to next.
-4. One commit per stage after all verification passes.
-5. Follow `agent-development/agent-specs/agent-workflow.md` for all execution rules.
-6. Follow `agent-development/agent-specs/git-workflow.md` for commit and branch conventions.
+4. Multiple commits per stage are allowed — each commit should be a self-contained unit.
+5. Follow `sdd/agent-development/agent-specs/agent-workflow.md` for all execution rules.
+6. Follow `sdd/agent-development/agent-specs/git-workflow.md` for commit and branch conventions.
