@@ -29,9 +29,12 @@ Requests are the initial ask from a human that spawns a planning + execution cyc
 | `planned` | Execution plan exists | Agent | `done` |
 | `done` | Request has been fulfilled | Agent / Human | _(terminal)_ |
 
+> **Shortcut:** Standalone requests created via Prompt 3 (interactive discovery) enter directly at `activated` status, skipping `draft` and `refined` — the interactive session itself serves as the refinement process.
+
 ```mermaid
 stateDiagram-v2
     [*] --> draft
+    [*] --> activated : standalone (Prompt 3)
     draft --> refined
     refined --> activated
     activated --> planned
