@@ -563,6 +563,8 @@ Full details in `common-specs/pr-conventions.md`.
 | 6 | `6-break-down-epic.md` | One-shot | Coordination | Decompose epic → task-graph + delivery.yaml + request shells |
 | 7 | `7-refine-epic-request.md` | Interactive | Coordination | Refine a shell request into a full document |
 | 8 | `8-dispatch-tasks.md` | One-shot | Coordination | Dispatch refined requests to target repos |
+| 9 | `9-create-epic-github.md` | One-shot | Coordination | Create an epic via GitHub Cloud Agent (git-native mode) |
+| 10 | `10-alignment-check-prompt.md` | Machine | Execution | LLM system prompt for CI alignment check (git-native mode) |
 
 **Interactive prompts** (3, 5, 7): The agent does NOT write files until the human declares refinement complete.
 
@@ -741,3 +743,67 @@ bin/dev repo:migrate <name>
 ```
 
 This copies `fallback-sdd/<name>/` into the repo as `sdd/`, updates `repos.yaml`, and commits in both repos.
+
+---
+
+## Git-Native SDD Mode
+
+> This section documents the alternative Git-Native workflow for teams using GitHub Copilot Cloud Agent. See `GIT-FLOW-DESIGN.md` for the full specification.
+
+### When to Use Git-Native vs Local Mode
+
+| Factor | Use Local Mode | Use Git-Native Mode |
+|--------|---------------|-------------------|
+| Team size | Solo developer | Multiple engineers needing visibility |
+| Agent type | IDE-based (VS Code/Zed Copilot) | Cloud-based (GitHub Copilot Cloud Agent) |
+| Approval style | Trust-based (edit YAML field) | Enforceable (branch protection + PR merge) |
+| Audit needs | Git log sufficient | Full PR history + Actions logs required |
+| Infrastructure | No CI/CD changes needed | GitHub Actions + secrets configuration |
+
+### How It Works
+
+```mermaid
+graph TD
+    A[Human creates Epic PR in Hub]:::accent0
+    B[Merge triggers epic-dispatch.yml]:::accent1
+    C[Issues created in target repos]:::accent2
+    D[Copilot creates Plan PRs]:::accent3
+    E[Human reviews & merges Plan PRs]:::accent4
+    F[plan-merged.yml creates execution issues]:::accent5
+    G[Copilot creates Code PRs]:::accent6
+    H[alignment-check.yml validates]:::accent7
+    I[Human reviews & merges Code PRs]:::accent0
+    J[sync-hub.yml updates delivery manifest]:::accent1
+
+    A --> B --> C --> D --> E --> F --> G --> H --> I --> J
+```
+
+### Setting Up Git-Native Mode
+
+> **Full bootstrap guide:** See [`GIT-FLOW-BOOTSTRAP.md`](../GIT-FLOW-BOOTSTRAP.md) for detailed step-by-step instructions including token setup, troubleshooting, and a verification checklist.
+
+Quick summary:
+
+1. **Hub repo:** The `.github/workflows/` directory contains `epic-dispatch.yml` and `sync-status.yml`
+2. **Target repos:** Copy contents of `target-repo-template/` into each managed repo
+3. **Secrets:** Configure `ORG_TOKEN` (hub), `HUB_TOKEN` + `HUB_REPO` (target repos)
+4. **Branch protection:** Enable on `main` in all target repos
+5. **Labels:** Create `sdd-plan`, `sdd-execute`, and `epic-N` labels in target repos
+
+### Git-Native Prompt Sequence
+
+| Goal | Prompt Sequence |
+|------|------------------|
+| Plan a cross-repo feature (cloud agent) | 9 → merge → (auto-dispatch) → agent plans → merge → agent executes → merge |
+| Single-repo task (cloud agent) | Create issue with `sdd-plan` label → assign `@copilot` → agent plans → merge → agent executes |
+| Plan a cross-repo feature (local agent) | Same as original: 5 → 6 → 7 → 8 → 1 → approve → 2 |
+
+### Key Files
+
+| File | Location | Purpose |
+|------|----------|--------|
+| `target-repo-template/` | Hub root | Template files to copy into target repos |
+| `.github/workflows/epic-dispatch.yml` | Hub | Auto-dispatches tasks on epic merge |
+| `.github/workflows/sync-status.yml` | Hub | Periodic delivery manifest sync |
+| `GIT-FLOW-DESIGN.md` | Hub root | Full design specification |
+| Prompts 9-10 | `user-development/prompts/` | Cloud agent prompts |

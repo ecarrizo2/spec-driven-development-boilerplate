@@ -100,6 +100,10 @@ hub/
 ├── architectural-schemas/         ← System topology diagrams
 │
 ├── bin/dev                        ← Hub CLI (coordination commands)
+├── target-repo-template/          ← Template files for git-native target repos
+│   ├── .github/                   ← Workflows + Copilot instructions
+│   ├── AGENTS.md                  ← Agent rules (git-native additions)
+│   └── sdd/plans/                 ← Plan directory scaffold
 ├── user-development/              ← Prompts and human guides
 │
 ├── AGENTS.md                      ← Rules for AI coding agents
@@ -162,6 +166,56 @@ This hub builds on the Spec-Driven Development methodology:
 - **`multirepo` branch** (this) — Extends to cross-repo coordination
 
 For the full methodology reference, see `user-development/DEVELOPMENT-GUIDE.md`.
+
+## Git-Native SDD Mode (git-flow)
+
+This boilerplate supports an alternative **Git-Native workflow** for teams using GitHub Copilot Cloud Agent. Instead of local filesystem state, this mode uses PRs as gates, GitHub Actions as the orchestrator, and Copilot as the execution engine.
+
+### When to Use Git-Native Mode
+
+| Use Case | Recommended Mode |
+|----------|------------------|
+| Single developer, IDE-based agent | Local mode (default) |
+| Team needs visibility into status | Git-native |
+| Cloud agents (Copilot Cloud) executing work | Git-native |
+| Enforceable approval gates needed | Git-native |
+| Automated audit trail required | Git-native |
+
+### Key Differences
+
+| Aspect | Local Mode | Git-Native Mode |
+|--------|-----------|------------------|
+| State machine | File location (`pending/` → `plans/` → `done/`) | PR status (draft → approved → merged) |
+| Approval gate | Edit `approval.status` in YAML | Merge the Plan PR |
+| Agent execution | IDE-based (VS Code/Zed copilot) | Cloud-based (GitHub Copilot Cloud Agent) |
+| Visibility | Local filesystem, `bin/dev status` | GitHub PR list, Issues, Actions |
+| Triggering | Human pastes prompt | GitHub Actions triggers agent |
+| Audit trail | Git commits + `.agent-audit-log` | PR history + Actions logs |
+
+### Setting Up Git-Native Mode
+
+**See [`GIT-FLOW-BOOTSTRAP.md`](GIT-FLOW-BOOTSTRAP.md) for the full step-by-step guide** covering:
+- Hub scaffolding and workflow verification
+- GitHub token/secret configuration (PAT vs GitHub App)
+- Target repo template installation and customization
+- Labels, branch protection, and Copilot enablement
+- End-to-end verification and troubleshooting
+
+Quick summary:
+1. Copy `target-repo-template/` contents into each target repo
+2. Configure repository variables and secrets (see `GIT-FLOW-DESIGN.md` §12)
+3. Set up branch protection on `main` in target repos
+4. Use prompts 9-10 (in `user-development/prompts/`) for the cloud agent workflow
+
+### Quick Reference (Git-Native)
+
+| Goal | Steps |
+|------|-------|
+| Plan a cross-repo feature | Open Agents panel on hub → describe feature → agent creates epic PR → merge → auto-dispatch |
+| Single-repo task (no epic) | Create issue in target repo → assign to `@copilot` with label `sdd-plan` → agent plans → merge → agent executes |
+| Trivial fix | Create issue → assign to `@copilot` (no labels) → agent creates PR directly |
+
+For the full specification, see `GIT-FLOW-DESIGN.md`.
 
 ## License
 

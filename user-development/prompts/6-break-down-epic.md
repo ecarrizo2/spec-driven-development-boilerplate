@@ -125,3 +125,55 @@ Provide:
 - Critical path (longest dependency chain)
 - Which tasks can be parallelized
 - Recommended activation order
+
+---
+
+## Git-Native Mode Adaptations
+
+> If you are running as a GitHub Copilot Cloud Agent (in the hub repo), use these adaptations instead of the defaults above.
+
+### Process Changes
+
+- **Create a branch** `epic/N-short-name` and open a PR with all output files
+- PR title: `epic(N-name): <epic title>`
+- Apply label: `sdd-epic`
+- Do NOT wait for confirmation — create the PR directly
+
+### Format Requirements for Automation
+
+The `task-graph.md` frontmatter must be parseable by `epic-dispatch.yml`:
+
+```yaml
+---
+tasks:
+  - id: 1
+    title: "Task title"
+    repo: "repo-key-from-repos-yaml"
+    request_file: "1-task-name.md"
+    jira_ticket: null
+    depends_on: []
+    status: refined  # or 'draft' if incomplete
+    complexity: 3
+---
+```
+
+The `delivery.yaml` must include enough metadata for automated sync:
+
+```yaml
+nodes:
+  - id: "pr-1"
+    task_id: 1
+    repo: "repo-key"
+    branch: null  # filled by agent during execution
+    status: planned
+    pr_url: null
+    pr_number: null
+    depends_on: []
+```
+
+### What Stays the Same
+
+- Epic decomposition rules (parallel over serial, one branch per task, etc.)
+- Complexity estimation (Fibonacci)
+- Request shell format
+- Task naming conventions

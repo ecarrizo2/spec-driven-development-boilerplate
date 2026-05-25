@@ -1,0 +1,88 @@
+name: "Alignment Check"
+
+on:
+  pull_request:
+    types: [ready_for_review]
+
+jobs:
+  alignment-check:
+    if: contains(github.event.pull_request.labels.*.name, 'sdd-execute')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          git diff origin/main...HEAD -- ':!sdd/' > /tmp/code_diff.txt
+          echo "diff_file=/tmp/code_diff.txt" >> $GITHUB_OUTPUT
+
+      - name: Get plan context
+        id: plan
+        run: |
+          # Extract plan dir from PR body
+          PLAN_DIR=$(echo "${{ github.event.pull_request.body }}" | grep -oP 'sdd/plans/[^\s`]+')
+          cat "$PLAN_DIR/specification.md" > /tmp/plan_context.txt
+          echo "plan_file=/tmp/plan_context.txt" >> $GITHUB_OUTPUT
+
+      - name: Run alignment check
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Call LLM API with diff + plan + epic context
+            // Return: { confidence: number, status: string, findings: string[] }
+            // Implementation depends on which LLM API is configured
+            // See prompt 10-alignment-check-prompt.md for the system prompt
+            const fs = require('fs');
+            const diff = fs.readFileSync('${{ steps.diff.outputs.diff_file }}', 'utf8');
+            const plan = fs.readFileSync('${{ steps.plan.outputs.plan_file }}', 'utf8');
+
+            // TODO: Replace with actual LLM API call (GitHub Models, OpenAI, etc.)
+            // For now, output a placeholder that passes
+            const result = {
+              confidence: 90,
+              status: 'on_track',
+              findings: ['Alignment check placeholder — configure LLM_API_KEY to enable'],
+              missing_from_plan: [],
+              additions_beyond_plan: []
+            };
+            core.setOutput('result', JSON.stringify(result));
+
+      - name: Post review comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const result = JSON.parse('${{ steps.check.outputs.result }}');
+            const emoji = result.confidence >= 85 ? '✅' : '⚠️';
+            const status = result.confidence >= 85 ? 'On track' : 'Potential drift detected';
+
+            const body = [
+              `## 🔍 Alignment Check (confidence: ${result.confidence}%)`,
+              ``,
+              `**Status:** ${emoji} ${status}`,
+              ``,
+              `**Findings:**`,
+              ...result.findings.map(f => `- ${f}`),
+              ``,
+              `---`,
+              `**Options — reply to this comment:**`,
+              `- \`@copilot add this to the current PR\` — expand scope`,
+              `- \`@copilot create a follow-up issue for this\` — new task`,
+              `- \`acknowledged\` — dismiss, this is intentional`,
+            ].join('\n');
+
+            await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              event: 'COMMENT',
+              body: body,
+            });

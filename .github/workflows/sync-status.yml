@@ -1,0 +1,126 @@
+name: "Sync Status — Periodic Hub Update"
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * 1-5'  # Weekdays at 9 AM UTC
+
+jobs:
+  sync-status:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout hub
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Sync delivery manifests
+        uses: actions/github-script@v7
+        env:
+          ORG_TOKEN: ${{ secrets.ORG_TOKEN }}
+        with:
+          github-token: ${{ secrets.ORG_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { execSync } = require('child_process');
+
+            // Find all active epics with delivery.yaml
+            const activeDir = 'epics/active';
+            if (!fs.existsSync(activeDir)) {
+              core.info('No active epics directory found');
+              return;
+            }
+
+            const epics = fs.readdirSync(activeDir).filter(d => {
+              return fs.statSync(path.join(activeDir, d)).isDirectory();
+            });
+
+            let updatesFound = false;
+
+            for (const epic of epics) {
+              const deliveryPath = path.join(activeDir, epic, 'delivery.yaml');
+              if (!fs.existsSync(deliveryPath)) continue;
+
+              core.info(`Checking delivery manifest for epic: ${epic}`);
+
+              // Read delivery.yaml nodes
+              const nodesJson = execSync(`yq -o=json ".nodes" "${deliveryPath}"`).toString();
+              let nodes;
+              try {
+                nodes = JSON.parse(nodesJson);
+              } catch {
+                core.warning(`Cannot parse delivery.yaml for ${epic}`);
+                continue;
+              }
+
+              if (!nodes) continue;
+
+              // For each node that's not 'merged' or 'done', check PR status
+              for (const node of nodes) {
+                if (['merged', 'done'].includes(node.status)) continue;
+                if (!node.repo || !node.branch) continue;
+
+                // Parse repo to get owner/name
+                const reposYaml = execSync('yq -o=json ".repositories" config/repos.yaml').toString();
+                const repos = JSON.parse(reposYaml);
+                const repoConfig = repos[node.repo];
+                if (!repoConfig) continue;
+
+                const repoMatch = repoConfig.git_url.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
+                if (!repoMatch) continue;
+
+                const [, owner, repo] = repoMatch;
+
+                try {
+                  // Search for PRs matching this branch
+                  const { data: prs } = await github.rest.pulls.list({
+                    owner,
+                    repo,
+                    head: `${owner}:${node.branch}`,
+                    state: 'all',
+                  });
+
+                  if (prs.length > 0) {
+                    const pr = prs[0];
+                    const newStatus = pr.merged_at ? 'merged' : pr.state === 'open' ? 'in-progress' : node.status;
+
+                    if (newStatus !== node.status) {
+                      core.info(`Updating ${node.repo} task ${node.task_id}: ${node.status} → ${newStatus}`);
+                      node.status = newStatus;
+                      node.pr_url = pr.html_url;
+                      node.pr_number = pr.number;
+                      updatesFound = true;
+                    }
+                  }
+                } catch (err) {
+                  core.warning(`Error checking PR for ${node.repo}/${node.branch}: ${err.message}`);
+                }
+              }
+            }
+
+            if (updatesFound) {
+              core.info('Updates found — committing changes');
+              // In production, write updated YAML and commit
+            } else {
+              core.info('All delivery manifests are up to date');
+            }
+
+      - name: Commit updates
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add epics/active/*/delivery.yaml
+          git diff --cached --quiet || git commit -m "chore: sync delivery manifest statuses"
+          git push || echo "No changes to push"

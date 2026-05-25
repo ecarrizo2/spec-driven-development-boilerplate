@@ -1,0 +1,73 @@
+name: "Plan Merged — Trigger Execution"
+
+on:
+  pull_request:
+    types: [closed]
+    paths:
+      - 'sdd/plans/**'
+
+jobs:
+  trigger-execution:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Extract plan metadata
+        id: meta
+        run: |
+          # Find the manifest.yaml in the merged plan
+          PLAN_DIR=$(find sdd/plans -name "manifest.yaml" -path "*$(echo '${{ github.event.pull_request.title }}' | grep -oP 'JIRA-\d+')*" | head -1 | xargs dirname)
+          echo "plan_dir=$PLAN_DIR" >> $GITHUB_OUTPUT
+          # Extract JIRA ID and title from manifest
+          JIRA_ID=$(yq '.plan_metadata.jira_ticket' "$PLAN_DIR/manifest.yaml")
+          TITLE=$(yq '.plan_metadata.title' "$PLAN_DIR/manifest.yaml")
+          echo "jira_id=$JIRA_ID" >> $GITHUB_OUTPUT
+          echo "title=$TITLE" >> $GITHUB_OUTPUT
+
+      - name: Create execution issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const planDir = '${{ steps.meta.outputs.plan_dir }}';
+            const jiraId = '${{ steps.meta.outputs.jira_id }}';
+            const title = '${{ steps.meta.outputs.title }}';
+
+            // Copy labels from source PR (to preserve epic-N label)
+            const labels = context.payload.pull_request.labels
+              .map(l => l.name)
+              .filter(n => n.startsWith('epic-'));
+            labels.push('sdd-execute');
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `implement: ${jiraId} ${title}`,
+              body: [
+                `## Execute Approved Plan`,
+                ``,
+                `**Plan location:** \`${planDir}/\``,
+                `**Plan PR:** #${context.payload.pull_request.number}`,
+                `**Jira:** ${jiraId}`,
+                ``,
+                `### Instructions`,
+                ``,
+                `1. Read the plan at \`${planDir}/specification.md\``,
+                `2. Read all stage files in order`,
+                `3. Create branch \`feat/${jiraId.toLowerCase()}-...\``,
+                `4. Execute each stage, committing incrementally`,
+                `5. Run verification after each stage (lint, typecheck, test)`,
+                `6. Open a PR when all stages pass`,
+                ``,
+                `### Commit Convention`,
+                ``,
+                `Use conventional commits: \`feat(<scope>): ${jiraId} <description>\``,
+                `Include co-author trailer as specified in AGENTS.md.`,
+              ].join('\n'),
+              assignees: ['copilot'],
+              labels: labels,
+            });

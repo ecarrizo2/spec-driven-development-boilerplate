@@ -1,0 +1,215 @@
+name: "Epic Dispatch — Create Issues in Target Repos"
+
+on:
+  pull_request:
+    types: [closed]
+    paths:
+      - 'epics/active/**'
+
+jobs:
+  dispatch-tasks:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Checkout hub
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Dispatch tasks to target repos
+        uses: actions/github-script@v7
+        env:
+          ORG_TOKEN: ${{ secrets.ORG_TOKEN }}
+        with:
+          github-token: ${{ secrets.ORG_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { execSync } = require('child_process');
+
+            // Find the epic directory from the PR's changed files
+            const files = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+
+            const epicDir = files.data
+              .map(f => f.filename)
+              .find(f => f.startsWith('epics/active/') && f.includes('task-graph.md'));
+
+            if (!epicDir) {
+              core.info('No task-graph.md found in PR — skipping dispatch');
+              return;
+            }
+
+            const epicPath = path.dirname(epicDir);
+            const taskGraphPath = path.join(epicPath, 'task-graph.md');
+
+            if (!fs.existsSync(taskGraphPath)) {
+              core.setFailed(`task-graph.md not found at ${taskGraphPath}`);
+              return;
+            }
+
+            // Extract YAML frontmatter from task-graph.md
+            const content = fs.readFileSync(taskGraphPath, 'utf8');
+            const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
+            if (!yamlMatch) {
+              core.setFailed('No YAML frontmatter found in task-graph.md');
+              return;
+            }
+
+            // Parse tasks using yq (write temp file)
+            fs.writeFileSync('/tmp/task-graph-frontmatter.yaml', yamlMatch[1]);
+            const tasksJson = execSync('yq -o=json ".tasks" /tmp/task-graph-frontmatter.yaml').toString();
+            const tasks = JSON.parse(tasksJson);
+
+            // Read repos.yaml for repo metadata
+            const reposYaml = execSync('yq -o=json ".repositories" config/repos.yaml').toString();
+            const repos = JSON.parse(reposYaml);
+
+            // Extract epic number from path
+            const epicName = path.basename(epicPath);
+            const epicNumber = epicName.split('-')[0];
+
+            const results = [];
+
+            for (const task of tasks) {
+              if (task.status !== 'refined') {
+                core.info(`Skipping task ${task.id} (status: ${task.status})`);
+                continue;
+              }
+
+              const repoConfig = repos[task.repo];
+              if (!repoConfig) {
+                core.warning(`No repo config found for ${task.repo} — skipping task ${task.id}`);
+                results.push({ task: task.id, status: 'error', reason: 'repo not found in repos.yaml' });
+                continue;
+              }
+
+              // Read request file if it exists
+              let requestContent = '';
+              const requestPath = path.join(epicPath, 'requests', task.request_file || `${task.id}-${task.title.toLowerCase().replace(/\s+/g, '-')}.md`);
+              if (fs.existsSync(requestPath)) {
+                requestContent = fs.readFileSync(requestPath, 'utf8');
+              }
+
+              // Read epic summary
+              const epicMdPath = path.join(epicPath, 'epic.md');
+              let epicSummary = '';
+              if (fs.existsSync(epicMdPath)) {
+                const epicContent = fs.readFileSync(epicMdPath, 'utf8');
+                // Extract first section as summary
+                epicSummary = epicContent.split('\n## ').slice(0, 2).join('\n## ').substring(0, 2000);
+              }
+
+              // Read agent specs for context bundling
+              let specsContext = '';
+              const fallbackSpecsPath = `fallback-sdd/${task.repo}/agent-development/agent-specs/`;
+              if (fs.existsSync(fallbackSpecsPath)) {
+                const specFiles = fs.readdirSync(fallbackSpecsPath).filter(f => f.endsWith('.md'));
+                for (const sf of specFiles.slice(0, 3)) {
+                  const specContent = fs.readFileSync(path.join(fallbackSpecsPath, sf), 'utf8');
+                  specsContext += `\n\n---\n### ${sf}\n${specContent.substring(0, 3000)}`;
+                }
+              }
+
+              // Parse repo URL to get owner/repo
+              const gitUrl = repoConfig.git_url;
+              const repoMatch = gitUrl.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
+              if (!repoMatch) {
+                core.warning(`Cannot parse GitHub URL for ${task.repo}: ${gitUrl}`);
+                results.push({ task: task.id, status: 'error', reason: 'cannot parse git_url' });
+                continue;
+              }
+
+              const [, targetOwner, targetRepo] = repoMatch;
+              const jiraId = task.jira_ticket || 'NO-TICKET';
+
+              // Create issue in target repo
+              const issueBody = [
+                `## Plan: ${task.title}`,
+                ``,
+                `**Jira:** ${jiraId}`,
+                `**Epic:** ${epicName}`,
+                `**Complexity:** ${task.complexity || 'TBD'}`,
+                ``,
+                `---`,
+                ``,
+                `### Epic Context`,
+                ``,
+                epicSummary,
+                ``,
+                `---`,
+                ``,
+                `### Task Request`,
+                ``,
+                requestContent || '_No request file found — use the task title and epic context above._',
+                ``,
+                `---`,
+                ``,
+                `### Architecture & Specs`,
+                ``,
+                specsContext || '_No specs bundled — check the repo\'s own documentation._',
+                ``,
+                `---`,
+                ``,
+                `### Planning Instructions`,
+                ``,
+                `1. Read the context above carefully`,
+                `2. Read \`.github/copilot-instructions.md\` and \`AGENTS.md\` for repo conventions`,
+                `3. Create branch: \`plan/${jiraId.toLowerCase()}-<short-description>\``,
+                `4. Write plan files to \`sdd/plans/<task-name>/\`:`,
+                `   - \`manifest.yaml\` (machine-readable metadata)`,
+                `   - \`specification.md\` (human-readable overview)`,
+                `   - Stage instruction files (\`1-stage-name.md\`, \`2-stage-name.md\`, ...)`,
+                `5. Open a PR with title: \`plan: ${jiraId} ${task.title}\``,
+                `6. Apply label: \`sdd-plan\``,
+              ].join('\n');
+
+              try {
+                await github.rest.issues.create({
+                  owner: targetOwner,
+                  repo: targetRepo,
+                  title: `plan: ${jiraId} ${task.title}`,
+                  body: issueBody.substring(0, 65000),  // GitHub issue body limit
+                  assignees: ['copilot'],
+                  labels: ['sdd-plan', `epic-${epicNumber}`],
+                });
+
+                results.push({ task: task.id, status: 'dispatched', repo: `${targetOwner}/${targetRepo}` });
+                core.info(`Dispatched task ${task.id} to ${targetOwner}/${targetRepo}`);
+              } catch (err) {
+                core.warning(`Failed to dispatch task ${task.id}: ${err.message}`);
+                results.push({ task: task.id, status: 'error', reason: err.message });
+              }
+            }
+
+            // Post summary on the epic PR
+            const summary = results.map(r => `- Task ${r.task}: ${r.status}${r.repo ? ` (${r.repo})` : ''}${r.reason ? ` — ${r.reason}` : ''}`).join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `## 🚀 Epic Dispatch Results\n\n${summary}`,
+            });
+
+      - name: Update task-graph statuses
+        run: |
+          # Update dispatched tasks from 'refined' to 'activated' in task-graph.md
+          # This is a simplified version — production would use yq for precise editing
+          echo "Task statuses would be updated to 'activated' here"
+          # TODO: Implement yq-based status update and commit back to main

@@ -131,3 +131,16 @@ topology:
     example-api:
       depends_on: [example-infra]
       interface: "infrastructure"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Hub configuration (used by git-native SDD workflow)
+# Required for sync-hub.yml and epic-dispatch.yml GitHub Actions
+# ─────────────────────────────────────────────────────────────────────────────
+hub:
+  repo: "your-org/your-domain-hub"    # GitHub owner/repo for the hub
+  default_labels:
+    plan: "sdd-plan"
+    execute: "sdd-execute"
+  dispatch:
+    auto_dispatch_on_merge: true       # Dispatch tasks when epic PR merges
+    status_sync_schedule: "weekdays"   # When sync-status.yml runs

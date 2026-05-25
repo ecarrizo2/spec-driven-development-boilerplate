@@ -75,3 +75,30 @@ Ask me before saving any files.
 
 After saving, remind me:
 > "Review `specification.md`, resolve any PENDING questions, then set `manifest.yaml` → `approval.status: approved` when ready to execute."
+
+---
+
+## Git-Native Mode Adaptations
+
+> If you are running as a GitHub Copilot Cloud Agent (triggered by a GitHub Issue), use these adaptations instead of the defaults above.
+
+### Context Changes
+
+- **DO NOT** read from `agent-development/pending/` — your context comes from the **GitHub Issue body** that triggered this session
+- Read the issue that triggered this session for full context (epic summary, request, specs)
+- Read `.github/copilot-instructions.md` and `AGENTS.md` for repo conventions
+
+### Output Changes
+
+- Write plan files to `sdd/plans/<N-task-name>/` (NOT `agent-development/plans/`)
+- Open a PR with plan files when complete — do NOT wait for user confirmation
+- PR title: `plan: <JIRA-ID> <task title>`
+- Apply label: `sdd-plan`
+- Mark PR as ready for review when the plan is complete
+
+### What Stays the Same
+
+- Plan artifact format (manifest.yaml, specification.md, stages)
+- Blast radius constraints
+- Open Questions mechanism (PENDING markers)
+- Complexity scale (Fibonacci)

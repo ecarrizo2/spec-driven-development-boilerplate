@@ -118,3 +118,81 @@ Does repos/<name>/sdd/ exist?
 ```
 
 This pattern applies to: agent-specs, pending requests, plans, config/commands.yaml, and all workflow artifacts.
+
+---
+
+## Git-Native SDD Mode
+
+> This section applies when using the **git-flow** branch workflow with GitHub Copilot Cloud Agent.
+> It describes the PR-based, CI-driven alternative to the local filesystem-based workflow.
+
+### Overview
+
+In Git-Native mode:
+- **PRs are the universal interface** — if it's not in a PR, it doesn't exist
+- **GitHub Actions is the orchestrator** — all automated transitions are GH Actions
+- **Copilot Cloud Agent is the execution engine** — all agent work goes through it
+- **Issues are the dispatch mechanism** — assigning an issue to `@copilot` starts work
+
+### Plan Phase (Git-Native)
+
+- You receive work via GitHub Issues (assigned to you with label `sdd-plan`)
+- Create a branch `plan/<JIRA-ID>-<description>` and open a PR with plan files only
+- The issue body contains all context you need (epic, request, specs)
+- Write plan files to `sdd/plans/<task-name>/` (in target repos)
+- Do NOT write code during the plan phase
+- Mark PR ready for review when plan is complete
+
+### Execution Phase (Git-Native)
+
+- You receive work via GitHub Issues (assigned to you with label `sdd-execute`)
+- The plan is already approved and on `main` — read it from there
+- Create a branch `feat/<JIRA-ID>-<description>` and implement the plan
+- Push commits incrementally, the draft PR updates automatically
+- Run verification after each stage (lint, typecheck, test)
+- Mark ready for review only after all stages pass verification
+
+### Commit Convention (Git-Native)
+
+```
+<type>(<scope>): <JIRA-ID> <description>
+
+Co-authored-by: Copilot <noreply@github.com>
+```
+
+### Branch Naming (Git-Native)
+
+| Phase | Pattern | Example |
+|-------|---------|----------|
+| Epic (hub) | `epic/<N>-<short-name>` | `epic/3-user-awards` |
+| Plan (target) | `plan/<JIRA-ID>-<short-name>` | `plan/PROJ-123-add-v2-endpoint` |
+| Code (target) | `feat/<JIRA-ID>-<short-name>` | `feat/PROJ-123-add-v2-endpoint` |
+| Hotfix | `fix/<JIRA-ID>-<short-name>` | `fix/PROJ-456-null-check` |
+
+### Labels (Git-Native)
+
+| Label | Applied To | Purpose |
+|-------|-----------|----------|
+| `sdd-plan` | Plan issues and PRs | Identifies planning phase work |
+| `sdd-execute` | Execution issues and PRs | Identifies implementation phase work |
+| `epic-N` | All issues/PRs for epic N | Groups work by epic |
+| `alignment-checked` | Code PRs after check runs | Prevents re-running check |
+
+### Hub vs Target Repo Actions
+
+| Action | Location | Trigger |
+|--------|----------|----------|
+| `epic-dispatch.yml` | Hub | Epic PR merged → creates issues in target repos |
+| `sync-status.yml` | Hub | Periodic — syncs delivery manifest statuses |
+| `copilot-setup-steps.yml` | Target repos | Configures Copilot's environment |
+| `plan-merged.yml` | Target repos | Plan PR merged → creates execution issue |
+| `alignment-check.yml` | Target repos | Code PR ready for review → validates alignment |
+| `sync-hub.yml` | Target repos | Code PR merged → updates hub delivery manifest |
+
+### Coexistence with Local Mode
+
+Both modes use the same planning artifacts and conventions — only the execution mechanism differs:
+- **Local mode** (default): IDE-based agents, local filesystem state, `bin/dev` commands
+- **Git-native mode**: Cloud agents, PR-based state, GitHub Actions orchestration
+
+See `target-repo-template/` for the files to copy into target repos when adopting git-native mode.

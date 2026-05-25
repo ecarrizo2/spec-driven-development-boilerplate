@@ -87,3 +87,40 @@ If you encounter something unexpected:
 | `blocker` | Log in manifest.yaml, set status to `paused`, STOP and wait |
 
 For blockers: I'll edit the manifest with my decision, then resume with this same prompt.
+
+---
+
+## Git-Native Mode Adaptations
+
+> If you are running as a GitHub Copilot Cloud Agent (triggered by a GitHub Issue with label `sdd-execute`), use these adaptations instead of the defaults above.
+
+### Context Changes
+
+- **DO NOT** check `approval.status` — the plan is approved because it's merged to `main`
+- Read the plan from `sdd/plans/<task>/` on the current `main` branch
+- Read the issue body for additional context (Jira ID, epic reference)
+
+### Process Changes
+
+- **DO NOT** wait for human approval of commit plans — execute autonomously
+- Create branch `feat/<JIRA-ID>-<short-description>` and open a draft PR immediately
+- Execute stages sequentially, committing and pushing incrementally
+- Run verification after each stage (lint, typecheck, test)
+- Mark PR as **ready for review** when all stages pass
+- **DO NOT** archive locally (no `done/plans/`, `done/requests/` moves)
+
+### Commit Convention
+
+```
+<type>(<scope>): <JIRA-ID> <description>
+
+Co-authored-by: Copilot <noreply@github.com>
+```
+
+### What Stays the Same
+
+- Stage-by-stage execution order
+- Blast radius constraints
+- Verification requirements (lint, typecheck, test)
+- Discovery handling (info/question/blocker classification)
+- Max 2 retries on test failures before stopping
