@@ -16,9 +16,20 @@ set -euo pipefail
 # Resolve the directory this script lives in (handles symlinks)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMANDS_DIR="${SCRIPT_DIR}/commands"
-# bin/dev lives at sdd/bin/dev, so project root is two levels up
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-SDD_DIR="${SCRIPT_DIR}/.."
+# In a multirepo hub, bin/dev lives at ./bin/dev (one level below hub root)
+# In a per-repo sdd, bin/dev lives at sdd/bin/dev (two levels below project root)
+# Detect which layout we're in by checking for config/repos.yaml at parent
+if [[ -f "${SCRIPT_DIR}/../config/repos.yaml" ]]; then
+  # Hub layout: bin/ is at hub root
+  PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+  SDD_ROOT="${PROJECT_ROOT}"
+else
+  # Per-repo layout: bin/ is inside sdd/
+  PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+  SDD_ROOT="${SCRIPT_DIR}/.."
+fi
+SDD_DIR="${SDD_ROOT}"  # Legacy alias
+export SDD_ROOT PROJECT_ROOT
 
 # Source shared utilities
 source "${COMMANDS_DIR}/_common.sh"
@@ -73,6 +84,16 @@ GIT FLOW:
 REVIEW:
   review <pr-number> [--no-diff] Structured review packet for a PR
 
+MULTIREPO (Hub Coordination):
+  repo:list                     Show all registered repos with status
+  repo:sync [name]              Update submodule(s) to latest main
+  repo:add <name> <url>         Register new repo as submodule
+  repo:enter <name>             Print context for working in a repo
+  repo:migrate <name>           Move fallback-sdd/ into child repo
+  dispatch <epic-id> <task-id>  Dispatch task request to target repo
+  status [epic-id]              Cross-repo epic status dashboard
+  resolve-spec <type> <repo>    Find spec file via cascade resolution
+
 WORKFLOW:
   wf:status                     Show status of epics, tasks, and plans
   wf:validate [files...]        Validate YAML manifests and frontmatter
@@ -80,17 +101,16 @@ WORKFLOW:
   wf:blockers                   List open questions and pending amendments
   wf:archive <epic> [--dry-run] Archive a completed epic to done/
 
-REVIEW:
-  review <pr-number> [--no-diff] Produce structured review packet for a PR
-
 AGENT NOTES:
   note [--type=TYPE] "message"  Record a discovery/suggestion
   note:read [n]                 Show last N agent notes
   note:clear                    Archive and clear notes
 
 CONFIGURATION:
-  Commands are mapped in: sdd/config/commands.yaml
-  Team settings live in:  sdd/config/teams.yaml
+  Repo registry:       config/repos.yaml
+  Team settings:       config/teams.yaml
+  Command mappings:    config/commands.yaml
+  Common specs:        common-specs/
 
 Add new commands by creating scripts in bin/commands/
 See bin/README.md for the full growth protocol.

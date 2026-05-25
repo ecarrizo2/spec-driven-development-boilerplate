@@ -11,7 +11,12 @@ last_updated: null    # YYYY-MM-DD
 owner: ""             # Human responsible (Product Owner / Tech Lead)
 
 # Jira integration
-jira_epic: null       # e.g., PROJ-100 (created after epic is confirmed)
+jira_epic: null       # e.g., PROJ-54112 (created after epic is confirmed)
+
+# Multi-repo scope
+scope:
+  repos: []           # All repos this epic touches (must match repos.yaml keys)
+  primary_repo: null  # Where most changes happen (optional, for context)
 
 # Approval tracking (replaces folder-based approval)
 approval:
@@ -23,6 +28,8 @@ approval:
 references:
   confluence: []      # Confluence page URLs (PRDs, specs, research)
   figma: []           # Figma design URLs
+  contracts: []       # Relevant interface contracts from hub's contracts/
+  architectural_schemas: []  # Relevant topology docs from architectural-schemas/
   other: []           # Any other relevant links (Jira, Notion, Loom, Slack threads)
 ---
 
@@ -61,9 +68,23 @@ _How do we know this is done and working? Measurable where possible._
 
 - ...
 
+## Repos Involved
+
+_Which repositories are affected by this epic and why. This section connects to `scope.repos` in the frontmatter._
+
+| Repo | Role in this epic | Type of changes |
+|------|-------------------|-----------------|
+| `repo-name` | _e.g., "New API endpoint"_ | _e.g., "Backend logic + DB migration"_ |
+
 ## Technical Constraints
 
-_Anything the breakdown/implementation must respect — existing patterns, data requirements, migration concerns, performance budgets, etc. This section is informed by the discovery session._
+_Anything the breakdown/implementation must respect — existing patterns, data requirements, migration concerns, performance budgets, cross-repo interface contracts, etc._
+
+- ...
+
+## Cross-Repo Dependencies
+
+_How do changes in one repo affect or depend on changes in another? Document interface contracts, deployment ordering requirements, and integration points._
 
 - ...
 
