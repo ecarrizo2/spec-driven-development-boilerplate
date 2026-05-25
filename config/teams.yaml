@@ -1,3 +1,9 @@
+# config/teams.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# Team-level configuration for Jira integration, branching, and project defaults.
+# In a multirepo hub, this config applies to coordination-level work (epic planning,
+# task dispatch). Each repo may have its own teams.yaml for repo-specific overrides.
+# ─────────────────────────────────────────────────────────────────────────────
 # ─────────────────────────────────────────────────────────────────────────────
 # Team & Project Configuration
 # ─────────────────────────────────────────────────────────────────────────────
@@ -10,11 +16,11 @@ teams:
     display_name: "Your Team Name"
 
     jira:
-      project_key: "PROJ"          # Your Jira project key
-      board_id: null               # Sprint board ID (optional)
+      project_key: "PROJ" # Your Jira project key
+      board_id: null # Sprint board ID (optional)
       issue_types:
         epic: "Epic"
-        task: "Story"              # What issue type tasks become
+        task: "Story" # What issue type tasks become
         bug: "Bug"
         subtask: "Sub-task"
       mandatory_fields:
@@ -26,14 +32,14 @@ teams:
         labels: []
 
     branching:
-      base_branch: "main"          # or "develop", "master", etc.
+      base_branch: "main" # or "develop", "master", etc.
       ticket_id_pattern: "[A-Z][A-Z0-9]+-\\d+"
       branch_format: "<type>/<ticket-id>-<short-description>"
       branch_types: [feat, fix, chore, hotfix, refactor, docs, ci]
 
     conventions:
       commit_co_author: "Copilot <noreply@github.com>"
-      pr_merge_strategy: "squash"  # squash | merge | rebase
+      pr_merge_strategy: "squash" # squash | merge | rebase
       pr_draft_by_default: true
 
 active_team: "your-team"

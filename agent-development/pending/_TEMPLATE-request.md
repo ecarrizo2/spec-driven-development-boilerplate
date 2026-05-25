@@ -1,68 +1,69 @@
 ---
 # ─────────────────────────────────────────────────────────────────────────────
-# Request Metadata (machine-parseable)
+# Task Request Metadata
 # ─────────────────────────────────────────────────────────────────────────────
-id: null              # Sequential task number (e.g., 1, 2, 3)
+id: null              # Sequential number within the epic (e.g., 1, 2, 3)
 title: ""
 status: draft         # draft | refined | activated | planned | done
 complexity: null      # Fibonacci: 1 | 2 | 3 | 5 | 8 | 13
-jira_ticket: null     # e.g., PROJ-123 — filled after ticket creation
-epic: null            # Path to epic.md (e.g., "../../epics/active/1-feature-name/epic.md"), or "standalone"
-depends_on: []        # Task IDs that must be done before this task
+
+# Multirepo fields
+target_repo: ""       # Which repo this task executes in (must match repos.yaml key)
+hub_epic: ""          # Reference to parent epic folder (e.g., "1-awards-v2")
+
 created: null         # YYYY-MM-DD
 last_updated: null    # YYYY-MM-DD
-api_checkpoint: false # true if this task changes observable API behavior (endpoints, response shapes)
 ---
 
 # Task <N>: <Short Descriptive Title>
 
 ## Goal
 
-<!-- One or two sentences describing what this task achieves. What is the end state? -->
+_One sentence describing the end state when this task is done._
 
 ## Context
 
-<!-- Why is this task needed? What problem does it solve? Reference any prerequisite tasks by number (e.g., "Requires Task 2 to be completed first"). Explain how this fits into the broader application architecture. -->
+_Why this task is needed. How it fits into the broader epic. What has already been done (prior tasks), and what this enables (subsequent tasks)._
+
+**Parent epic:** `epics/active/<hub_epic>/epic.md`
+**Target repo:** `<target_repo>` (from `config/repos.yaml`)
 
 ## Requirements
 
-<!-- A bulleted list of concrete requirements. Each requirement should be verifiable — the implementing agent (or reviewer) should be able to confirm whether it was met or not. -->
+_Verifiable requirements. Each should be testable._
 
 - **R1.** ...
 - **R2.** ...
 - **R3.** ...
 
+## Cross-Repo Context
+
+_How does this task relate to work happening in other repos? What interfaces must be respected? What other PRs need to merge before or after this one?_
+
+- Depends on: _task X in repo Y (describe what it provides)_
+- Consumed by: _task Z in repo W (describe what it expects from us)_
+- Contracts to honor: _reference relevant file in `contracts/`_
+
 ## Implementation Details
 
-<!-- Detailed technical guidance for the implementing agent. Include: -->
-<!-- - Which files to create or modify (with full paths from project root) -->
-<!-- - Type definitions, function signatures, or interface contracts -->
-<!-- - Algorithmic notes or edge cases to handle -->
-<!-- - Any concurrency or error-handling considerations -->
-
-1. **Component Name (`/path/to/file.ts`):**
-   - Detail 1
-   - Detail 2
-
-## Edge Cases
-
-<!-- Known edge cases the implementation must handle. Added during refinement (Prompt 7). -->
+_Guidance for the planning agent — file paths, patterns to follow, edge cases, constraints. This is "what" not "how"._
 
 - ...
 
 ## Deliverables
 
-<!-- A checklist of tangible outputs. What files, features, or artifacts must exist when this task is done? -->
+_Concrete outputs that should exist when this task is done._
 
-- [ ] Deliverable 1
-- [ ] Deliverable 2
+- [ ] ...
+- [ ] ...
 
 ## Agent Checklist
 
-<!-- Verification steps the implementing agent must complete before marking this task as done. These should be concrete, runnable checks — not vague affirmations. -->
+_Verification steps the executing agent must perform._
 
-- [ ] Project compiles with zero errors
-- [ ] Unit tests pass
-- [ ] Linter passes with no new warnings
-- [ ] Update `agent-development/agent-specs/architecture-breakdown.md` if new modules, interfaces, directories, or significant files were introduced
-- [ ] Update `README.md` with latest considerations if user-facing behavior changed
+- [ ] All tests pass (`bin/dev test`)
+- [ ] Lint passes (`bin/dev lint`)
+- [ ] Type-check passes (`bin/dev typecheck`)
+- [ ] Spec/doc updates included if interfaces changed
+- [ ] Hub task-graph updated (status → done)
+- [ ] Hub delivery.yaml updated (PR URL added)
