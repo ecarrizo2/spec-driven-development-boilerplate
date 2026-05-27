@@ -57,6 +57,16 @@ _Concrete outputs that should exist when this task is done._
 - [ ] ...
 - [ ] ...
 
+## Acceptance Criteria
+
+_Verifiable criteria that define "done" for this task. Added during refinement (Prompt 7)._
+_Use specific, testable statements. Prefer Given/When/Then for behavioral criteria._
+_Include cross-repo integration criteria if this task's output is consumed by another repo._
+
+- [ ] [Criterion 1 — specific and testable]
+- [ ] [Criterion 2 — specific and testable]
+- [ ] [Criterion 3 — specific and testable]
+
 ## Agent Checklist
 
 _Verification steps the executing agent must perform._

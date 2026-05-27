@@ -315,11 +315,69 @@ For single-repo, single-task work, skip epics — dispatch a request directly.
 ```mermaid
 graph LR
     D[Define]:::accent0 --> B[Break Down]:::accent1
-    B --> J[Jira Tickets]:::accent2
-    J --> R[Refine]:::accent3
-    R --> DI[Dispatch]:::accent4
-    DI --> E[Execute]:::accent5
-    E --> DN[Done]:::accent6
+    B --> R[Refine + Create Tickets]:::accent2
+    R --> DI[Dispatch]:::accent3
+    DI --> E[Execute]:::accent4
+    E --> DN[Done]:::accent5
+```
+
+| Step | Who | Prompt | Output |
+|---|---|---|---|
+| **Define** | EM + Tech Lead + Agent | Prompt 5 | `epic.md` (status: `discussing` → `decomposed`) |
+| **Break Down** | Tech Lead + Agent | Prompt 6 | `task-graph.md` + request shells + `delivery.yaml` |
+| **Refine** | Tech Lead + Agent | Prompt 7 | Full request documents (status: `refined`) + Jira tickets |
+| **Dispatch** | Tech Lead / Agent | Prompt 8 / `bin/dev dispatch` | Request copied to target repo |
+| **Execute** | Agent | Prompts 1 → 2 | Code, PRs, plan completion |
+| **Amend** _(if needed)_ | Tech Lead + Agent | Prompt 11 | Updated graph, new/modified tasks, negotiation record |
+| **Done** | Human | `bin/dev wf:archive` | Epic moved to `done/` |
+
+### Roles & Responsibilities (RACI)
+
+| Phase | Product Manager | Engineering Manager | Tech Lead | Engineer / Agent |
+|-------|:-:|:-:|:-:|:-:|
+| Product brief creation | **R/A** | I | C | — |
+| Epic definition (Prompt 5) | C | **R/A** | **R** | — |
+| Task breakdown (Prompt 6) | — | I | **R/A** | — |
+| Task refinement (Prompt 7) | — | — | **R/A** | C |
+| Jira ticket creation | — | I | **R/A** | — |
+| Dispatch (Prompt 8) | — | — | **R/A** | — |
+| Plan review & approval | — | A | **R** | — |
+| Execution (Prompts 1-2) | — | — | I | **R/A** |
+| Amendment (Prompt 11) | C | I | **R/A** | — |
+
+_R = Responsible, A = Accountable, C = Consulted, I = Informed_
+
+### Input Requirements Per Phase
+
+| Phase | Required Inputs | Optional Inputs | Who Provides |
+|-------|-----------------|-----------------|-------------|
+| **Define** (Prompt 5) | Product brief (PRD, Confluence doc, or detailed Slack summary) | Technical Design Document, Figma designs | PM provides brief; Tech Lead provides TDD |
+| **Break Down** (Prompt 6) | Completed `epic.md` with status `decomposed` | Software Design Document with architectural approach | Tech Lead |
+| **Refine** (Prompt 7) | Request shell from Prompt 6, access to target repo source code | Predecessor task outputs, contracts | Tech Lead + codebase |
+| **Amend** (Prompt 11) | Active epic path + description of what changed | Updated designs, revised PRD, policy document | PM/EM provides trigger; Tech Lead executes |
+
+### The Prompt Chain: Data Flow
+
+```mermaid
+graph TD
+    Brief[Product Brief<br>from PM]:::accent0
+    TDD[Technical Design Doc<br>from Tech Lead]:::accent1
+    P5[Prompt 5: Define Epic<br>EM + Tech Lead]:::accent2
+    Epic[epic.md]:::accent3
+    P6[Prompt 6: Break Down<br>Tech Lead]:::accent4
+    Graph[task-graph.md<br>+ request shells<br>+ delivery.yaml]:::accent5
+    P7[Prompt 7: Refine<br>Tech Lead per task]:::accent6
+    Requests[Full requests<br>+ Jira tickets]:::accent7
+    P8[Prompt 8: Dispatch<br>to target repos]:::accent0
+
+    Brief --> P5
+    TDD --> P5
+    P5 --> Epic
+    Epic --> P6
+    P6 --> Graph
+    Graph --> P7
+    P7 --> Requests
+    Requests --> P8
 ```
 
 ### The Task-Graph
@@ -332,7 +390,7 @@ tasks:
     title: "Add v2 awards endpoint"
     repo: "awards-api"              # ← Which repo this executes in
     request_file: "requests/1-add-v2-endpoint.md"
-    jira_ticket: "PROJ-123"
+    jira_ticket: "PROJ-123"         # Filled after refinement (Prompt 7)
     depends_on: []                  # Task IDs (can be cross-repo!)
     status: draft
     complexity: 5
@@ -363,10 +421,22 @@ nodes:
 
 1. **Product decisions live in the epic; implementation decisions live in requests.**
 2. **All tasks carry a `repo` field** — no task is repo-ambiguous.
-3. **Jira tickets are created after the task-graph is finalized** — before any dispatch.
-4. **`delivery.yaml` is created at first dispatch** — it tracks all PRs across all repos.
-5. **Negotiations are recorded** — scope changes update both `task-graph.md` and `delivery.yaml`.
-6. **Merge order ≠ deployment order** — use `deploy_notes` for deployment sequencing.
+3. **Jira tickets are created after refinement** — during Prompt 7, after the task has full requirements and acceptance criteria. This ensures tickets are born rich (see `config/jira-ticket-templates.md`).
+4. **`delivery.yaml` is created during breakdown (Prompt 6)** — it tracks all PRs across all repos.
+5. **Amendments are first-class** — when scope changes after the epic is active, use Prompt 11 to formally amend. This records negotiations in `task-graph.md` and impacts in `delivery.yaml`.
+6. **Task IDs are immutable** — once assigned, an ID never changes. New tasks get the next sequential integer.
+7. **Merge order ≠ deployment order** — use `deploy_notes` for deployment sequencing.
+
+### Mid-Flight Amendments (Prompt 11)
+
+Epics rarely survive first contact with implementation unchanged. When scope needs to change after an epic is already active:
+
+1. **Trigger:** New product requirements, design revisions, engineering policy changes, or a task that proved too large.
+2. **Process:** Use Prompt 11 — an interactive session that assesses impact across repos, proposes minimal changes, and applies them.
+3. **ID rules:** New tasks get the next sequential ID. Existing IDs never change. Position in the graph is determined by dependency edges, not ID number.
+4. **Status flow:** Epic → `renegotiating` → changes applied → `active`.
+5. **Audit trail:** Every amendment is recorded in `task-graph.md` `negotiations[]` and `delivery.yaml` `negotiation_impacts[]`.
+6. **Constraints:** Completed tasks (`done`) are never modified — if rework is needed, create a new task. Already-dispatched tasks need extra care.
 
 ---
 
@@ -553,7 +623,7 @@ Full details in `common-specs/pr-conventions.md`.
 ## Prompt Templates
 
 | # | File | Type | Mode | Purpose |
-|---|------|------|------|---------|
+|---|------|------|------|--------|
 | 0 | `0-bootstrap-hub.md` | One-shot | Coordination | Bootstrap hub context (specs, docs, fallback-sdd) for registered repos |
 | 1 | `1-plan-task.md` | One-shot | Execution | Generate a plan from an activated request (in target repo) |
 | 2 | `2-execute-plan.md` | One-shot | Execution | Execute an approved plan (in target repo) |
@@ -561,16 +631,18 @@ Full details in `common-specs/pr-conventions.md`.
 | 4 | `4-quick-fix.md` | One-shot | Execution | Small change in a specific repo |
 | 5 | `5-create-epic.md` | Interactive | Coordination | Product discovery → produce `epic.md` |
 | 6 | `6-break-down-epic.md` | One-shot | Coordination | Decompose epic → task-graph + delivery.yaml + request shells |
-| 7 | `7-refine-epic-request.md` | Interactive | Coordination | Refine a shell request into a full document |
+| 7 | `7-refine-epic-request.md` | Interactive | Coordination | Refine a shell into full request + create Jira ticket |
 | 8 | `8-dispatch-tasks.md` | One-shot | Coordination | Dispatch refined requests to target repos |
+| 11 | `11-amend-epic.md` | Interactive | Coordination | Amend an active epic — insert/split/remove/resequence tasks |
 
-**Interactive prompts** (3, 5, 7): The agent does NOT write files until the human declares refinement complete.
+**Interactive prompts** (3, 5, 7, 11): The agent does NOT write files until the human declares refinement complete.
 
 ### When to Use What
 
 | Goal | Prompt Sequence |
-|------|-----------------|
-| Plan a new cross-repo feature | 5 → 6 → (Jira) → 7 per task → 8 → 1 per task → approve → 2 per task |
+|------|----------------|
+| Plan a new cross-repo feature | 5 → 6 → 7 per task (creates Jira) → 8 → 1 per task → approve → 2 per task |
+| Change scope on an active epic | 11 → 7 for new tasks → 8 → continue |
 | Add a quick single-repo feature (no epic) | 3 → dispatch manually → 1 → approve → 2 |
 | Make a trivial fix in one repo | 4 |
 | Bootstrap a new hub | 0 |
