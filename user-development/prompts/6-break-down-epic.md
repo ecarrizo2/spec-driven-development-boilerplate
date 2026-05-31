@@ -156,6 +156,8 @@ Reference dependency tasks by number if applicable.>
 ---
 
 > ⚠️ **This is a request shell.** It will be refined into a full request using Prompt 7 before activation and Jira ticket creation.
+
+> 📁 **Plan location:** When tasks are planned (Prompt 1), plan folders are created in this epic's `plans/` directory — not in `agent-development/plans/`.
 ```
 
 ### 4. Jira Ticket Timing

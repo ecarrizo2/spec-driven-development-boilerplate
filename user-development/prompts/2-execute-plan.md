@@ -57,10 +57,9 @@ After ALL stages complete:
 1. Run full verification (build + test + lint + typecheck)
 2. Mark PR as **ready for review** (no longer draft)
 3. Update `manifest.yaml`: `plan_metadata.status: done`
-4. Archive: move plan folder to `done/plans/`, request to `done/requests/`
-5. Final commit: `chore: <ticket-id> archive completed plan and request`
-6. If epic task: update `delivery.yaml` node status to `ready-for-review`
-7. If epic task: update `task-graph.md` task status to `done`
+4. For standalone tasks: archive plan folder to `done/plans/`, request to `done/requests/`
+5. For standalone tasks: final commit `chore: <ticket-id> archive completed plan and request`
+6. For epic tasks: plans stay in the epic folder; update `delivery.yaml` node status to `ready-for-review` and `task-graph.md` task status to `done`
 
 ---
 

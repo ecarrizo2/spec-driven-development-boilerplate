@@ -139,7 +139,7 @@ graph LR
 | **Define** | EM + Tech Lead + Agent | Prompt 5 | `epic.md` (status: `discussing` → `decomposed`) |
 | **Break Down** | Tech Lead + Agent | Prompt 6 | `task-graph.md` + request shells + `delivery.yaml` |
 | **Refine** | Tech Lead + Agent | Prompt 7 | Full request documents (status: `refined`) + Jira tickets |
-| **Activate** | Tech Lead | — | Copy request to `pending/`, update status to `activated` |
+| **Activate** | Tech Lead | — | Update request status to `activated` |
 | **Execute** | Agent | Prompts 1 → 2 | Code, PRs, plan completion |
 | **Amend** _(if needed)_ | Tech Lead + Agent | Prompt 8 | Updated graph, new/modified tasks, negotiation record |
 | **Done** | Auto | — | Epic archived to `done/` |
@@ -151,7 +151,8 @@ epics/active/N-epic-name/
 ├── epic.md              ← Product goals, requirements, decisions (YAML frontmatter)
 ├── task-graph.md        ← DAG of tasks + status tracking + Jira IDs (YAML frontmatter + Mermaid)
 ├── delivery.yaml        ← PR tree, merge order, execution status (created at first activation)
-└── requests/            ← Request files (shells → refined)
+├── requests/            ← Request files (shells → refined)
+└── plans/               ← Task plan folders (created during planning)
 ```
 
 ### Roles & Responsibilities (RACI)
@@ -241,7 +242,7 @@ graph TD
 ### Key Rules
 
 1. **No files are written during interactive discovery** — Prompts 5, 7, and 8 explicitly forbid writing until the human declares refinement complete.
-2. **The epic stays self-contained** — request files live in the epic's `requests/` folder. When activated, they are *copied* to `agent-development/pending/`.
+2. **The epic stays self-contained** — requests and plans live in the epic folder (`requests/` and `plans/`). No copying to `pending/` or `agent-development/plans/` is needed.
 3. **Product decisions live in the epic; implementation decisions live in requests** — don't put "how to code it" details in `epic.md`.
 4. **The task-graph frontmatter tracks status** — update task statuses as they progress through the workflow.
 5. **Jira tickets are created after refinement** — during Prompt 7, after the task has full requirements and acceptance criteria. This ensures tickets are born with sufficient context (see `config/jira-ticket-templates.md`).
@@ -294,12 +295,12 @@ graph LR
 **What happens:**
 - The agent reads all `agent-development/agent-specs/` documents for context.
 - The agent reads the specific task request from `pending/`.
-- The agent produces a **plan folder** in `agent-development/plans/` containing:
+- The agent produces a **plan folder** (for standalone tasks in `agent-development/plans/`, for epic tasks in `epics/active/N/plans/`) containing:
   - `manifest.yaml` (with `status: pending-approval`, `approval.status: pending`)
   - `specification.md` (plan overview and open questions)
   - One or more numbered stage files
 
-**Output:** A plan folder in `agent-development/plans/` ready for review.
+**Output:** A plan folder (in `agent-development/plans/` or the epic's `plans/` directory) ready for review.
 
 ### Stage 3: Approve
 
@@ -340,9 +341,8 @@ graph LR
 **Who:** Automatic (performed by the executing agent).
 
 **What happens:**
-- Plan folder and request are archived to `done/` subdirectories.
-- If part of an epic: `delivery.yaml` node status updated to `ready-for-review`.
-- If part of an epic: `task-graph.md` task status updated to `done`.
+- For standalone tasks: plan folder and request are archived to `done/` subdirectories.
+- For epic tasks: no separate archival is needed — plans and requests stay in the epic folder. Update `delivery.yaml` node status to `ready-for-review` and `task-graph.md` task status to `done`.
 - They serve as a historical record of what was built and why.
 
 ---
@@ -457,11 +457,16 @@ Every plan ensures `agent-development/agent-specs/` and human-facing docs stay c
 With field-based approval, files don't move until archiving:
 
 ```
-Request created → stays in pending/ throughout its lifecycle
-                → archived to done/requests/ after execution
+Standalone tasks:
+  Request created → stays in pending/ throughout its lifecycle
+                  → archived to done/requests/ after execution
+  Plan created    → stays in plans/ throughout its lifecycle
+                  → archived to done/plans/ after execution
 
-Plan created    → stays in plans/ throughout its lifecycle
-                → archived to done/plans/ after execution
+Epic tasks:
+  Request stays in epics/active/N/requests/ (no move needed)
+  Plan stays in epics/active/N/plans/ (no move needed)
+  Status tracked via delivery.yaml + task-graph.md
 ```
 
 Status transitions (tracked in YAML frontmatter):
@@ -666,7 +671,7 @@ If a task changes user-facing behavior, the executing agent updates `README.md` 
 1. **Prompt 5** (EM + Tech Lead) → interactive session → produces `epic.md` (status: `decomposed`)
 2. **Prompt 6** (Tech Lead) → agent produces `task-graph.md` + `delivery.yaml` + request shells
 3. **Prompt 7** per task (Tech Lead) → interactive refinement → full request (status: `refined`) + Jira ticket
-4. **Activate** → copy request to `pending/`, update status to `activated`
+4. **Activate** → update request status to `activated`
 5. **Prompt 1** → plan produced (status: `pending-approval`)
 6. **Approve** → update approval fields in manifest.yaml
 7. **Prompt 2** → agent executes, creates branch + draft PR, commits progressively
@@ -704,9 +709,9 @@ If a task changes user-facing behavior, the executing agent updates `README.md` 
 
 ### "I want to see what's in progress"
 
-- **What needs planning?** → `agent-development/pending/` (check frontmatter status: `activated`)
-- **What's planned but not approved?** → `agent-development/plans/` (check `manifest.yaml` for `approval.status: pending`)
-- **What's approved and ready?** → `agent-development/plans/` (check `manifest.yaml` for `approval.status: approved`)
+- **What needs planning?** → `agent-development/pending/` (standalone) or epic's `requests/` folder (check frontmatter status: `activated`)
+- **What's planned but not approved?** → `agent-development/plans/` (standalone) or epic's `plans/` folder (check `manifest.yaml` for `approval.status: pending`)
+- **What's approved and ready?** → `agent-development/plans/` (standalone) or epic's `plans/` folder (check `manifest.yaml` for `approval.status: approved`)
 - **What's done?** → `agent-development/done/`
 - **Epic status?** → `epics/active/N-name/task-graph.md` frontmatter
 - **PR status?** → `epics/active/N-name/delivery.yaml`

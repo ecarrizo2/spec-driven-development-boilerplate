@@ -26,7 +26,9 @@ Before planning, read and internalize:
 
 ## Your Task
 
-Produce a complete plan folder in `agent-development/plans/<N-task-name>/` containing:
+Produce a complete plan folder. For epic tasks: create in the epic's `plans/` directory (e.g., `sdd/epics/active/N-epic-name/plans/<N-task-name>/`). For standalone tasks: create in `sdd/agent-development/plans/<N-task-name>/`.
+
+The folder must contain:
 
 ### 1. `manifest.yaml`
 

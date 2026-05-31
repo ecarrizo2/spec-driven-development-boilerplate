@@ -100,6 +100,6 @@ See `config/jira-ticket-templates.md` for the full ticket content template. Ever
 ## Activation Checklist
 
 1. Ensure the request has been refined (status: `refined` in request frontmatter)
-2. Copy the request file to `sdd/agent-development/pending/`
+2. Update the request's frontmatter status to `activated`
 3. Update the task's status in frontmatter above to `activated`
 4. Agent creates the branch following conventions in `sdd/config/teams.yaml`
