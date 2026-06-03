@@ -1,3 +1,10 @@
+> **🎯 Preferred invocation:** In Zed or Claude Code, describe what you want —
+> the `sdd-create-request` skill activates automatically. In VS Code, use `/sdd-create-request`.
+>
+> **📋 Fallback:** Copy-paste the content below into any agent conversation.
+
+---
+
 # Prompt: Create a Request (Interactive Discovery)
 
 > **Usage:** Copy this prompt into a new agent conversation. Provide a description of the feature or change you want. The agent will guide you through a technical discovery session before writing the request document.
@@ -40,10 +47,11 @@ Before your first response, silently read:
 1. **Agent specs** — all files in `agent-development/agent-specs/`
 2. **Team config** — `config/teams.yaml` for project conventions
 3. **Status reference** — `user-development/STATUS-REFERENCE.md` for valid status values
-4. **Request template** — `agent-development/pending/_TEMPLATE-request.md` for the output format (note: uses YAML frontmatter)
+4. **Request template** — `agent-development/requests/_TEMPLATE-request.md` for the output format (note: uses YAML frontmatter)
 5. **Architecture docs** — read the relevant files `agent-development/agent-specs/architecture-breakdown.md` for project structure and patterns.
 6. **Relevant source code** — identify and read the key files/modules that would be affected. Read thoroughly.
-7. **Existing requests** — list `agent-development/pending/` and `agent-development/done/requests/` to understand what already exists and avoid duplication.
+7. **Existing requests** — list `agent-development/requests/` to understand what already exists and avoid duplication.
+8. **Writing specs** — `common-specs/writing-specs.md` for EARS notation and acceptance criteria quality bar, used when writing the Acceptance Criteria section of the request.
 
 ---
 
@@ -99,8 +107,8 @@ Ask: "Does this scope look right? Should I write the request?"
 
 When I explicitly confirm:
 
-1. **Determine the task number** — find the highest-numbered file across `agent-development/pending/` and `agent-development/done/requests/`. Use the next number.
-2. **Write the request** to `agent-development/pending/N-short-name.md` following `agent-development/pending/_TEMPLATE-request.md`.
+1. **Determine the task number** — find the highest-numbered file in `agent-development/requests/`. Use the next number.
+2. **Write the request** to `agent-development/requests/N-short-name.md` following `agent-development/requests/_TEMPLATE-request.md`.
 3. **Fill the YAML frontmatter completely:**
    - `id:` — the task number
    - `title:` — descriptive title

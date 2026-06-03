@@ -1,3 +1,10 @@
+> **🎯 Preferred invocation:** In Zed or Claude Code, describe what you want —
+> the `sdd-create-epic` skill activates automatically. In VS Code, use `/sdd-create-epic`.
+>
+> **📋 Fallback:** Copy-paste the content below into any agent conversation.
+
+---
+
 # Prompt: Create an Epic (Interactive Discovery)
 
 > **Usage:** Copy this prompt into a new agent conversation. Provide a product brief — this can be a PRD, a Slack message, a rough idea, or anything that describes the feature/project at a high level. The agent will guide you through an interactive discovery session before producing the epic document.
@@ -32,9 +39,10 @@ Before your first response, silently read:
 2. **Architecture documentation** — read relevant files in `agent-development/agent-specs/architecture-breakdown.md`
 3. **Agent specs** — `agent-development/agent-specs/application-overview.md` and `architecture-breakdown.md`
 4. **Relevant source code** — identify and read the key files/modules that would be affected
-5. **Existing epics** — list `epics/active/` and `epics/done/` to understand what's already been defined
+5. **Existing epics** — list `epics/` to understand what's already been defined (all epics, including completed ones, live here)
 6. **Status reference** — `user-development/STATUS-REFERENCE.md` for valid status values
 7. **Epic template** — `epics/_templates/epic.md` for the output format
+8. **Writing specs** — `common-specs/writing-specs.md` for EARS notation to use when writing Success Criteria in the epic document.
 
 ---
 
@@ -66,6 +74,7 @@ Ask questions organized by category. Only ask categories that are relevant. Pres
 | ⚠️ Risk & dependencies | What could break, external dependencies, migration concerns |
 | 🚫 Scope boundaries | What's explicitly out, what should be deferred |
 | 📐 Sizing & sequencing | Complexity estimate, should this be one epic or multiple |
+| ✅ Definition of Done | What constitutes "done" for this epic — deployment criteria, rollout strategy, monitoring expectations, required sign-offs |
 
 ### Phase 3: Challenge & Surface Risks
 
@@ -75,11 +84,19 @@ Push back, propose scope cuts, flag risks, ask follow-ups.
 
 When I explicitly indicate discovery is complete:
 
-1. **Determine the epic number** — check `epics/active/` and `epics/done/` for the highest existing number.
-2. **Create the epic folder** at `epics/active/N-epic-name/`
+1. **Determine the epic number** — check `epics/` for the highest existing number.
+2. **Create the epic folder** at `epics/N-epic-name/`
+   > **Naming convention:** Use an ordinal prefix initially (e.g., `3-storefront-redesign/`). Once a Jira epic ticket exists, the folder can be renamed to use the Jira ticket ID as prefix instead (e.g., `GPMP-55200-storefront-redesign/`). This rename is optional but recommended for traceability.
 3. **Write `epic.md`** following `epics/_templates/epic.md`:
-   - Fill YAML frontmatter (id, title, status: `decomposed`, complexity, created, jira_epic: null, references)
+   - Fill YAML frontmatter (id, title, status: `pending`, complexity, created, jira_epic: null, references)
    - Include "Decisions Made During Discovery" section capturing key Q&A
+   - Include "Definition of Done" section with explicit completion criteria:
+     - What constitutes production-ready (feature flags, staged rollout, full launch?)
+     - Required monitoring / analytics confirmation
+     - Required sign-offs (QA, PM acceptance, stakeholder demo?)
+     - Any documentation or training materials needed before closure
+     - Success metrics or thresholds (if applicable)
+   - **Success Criteria notation:** Write measurable success criteria using EARS notation for system/API-level criteria (see `common-specs/writing-specs.md`). Use Given/When/Then for behavioral/UI criteria.
 4. **Create an empty `requests/` subdirectory**
 5. **If Atlassian MCP is available:** Ask me if I want you to create the Jira epic ticket now (using settings from `config/teams.yaml`). If yes, create it and fill `jira_epic` in frontmatter.
 

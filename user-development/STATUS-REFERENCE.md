@@ -21,36 +21,31 @@ Statuses are always lowercase, hyphenated strings stored in YAML frontmatter or 
 
 Epics track large initiatives from ideation through completion.
 
-| Status | Meaning | Transitioned by | Next statuses |
-|--------|---------|-----------------|---------------|
-| `draft` | Initial capture of an idea; incomplete | Human | `discussing`, `abandoned` |
-| `discussing` | Under active discussion and refinement | Human | `decomposed`, `abandoned` |
-| `decomposed` | Broken into tasks; task graph exists | Human / Agent | `active`, `abandoned` |
-| `active` | Work is in progress on child tasks | Human / Agent | `paused`, `renegotiating`, `delivered` |
-| `paused` | Temporarily halted (external blocker, priority shift) | Human | `active`, `abandoned` |
-| `renegotiating` | Scope or direction being revised mid-flight | Human | `active`, `abandoned` |
-| `delivered` | All tasks complete; awaiting final sign-off | Agent / Human | `done`, `active` |
-| `done` | Fully complete and accepted | Human | _(terminal)_ |
-| `abandoned` | Cancelled; will not be completed | Human | _(terminal)_ |
+| Status | Meaning | Set by | Valid next statuses |
+|--------|---------|--------|---------------------|
+| `pending` | Defined and decomposed; not yet being actively worked | Human | `active`, `abandoned` |
+| `active` | At least one task is in-progress | Human / Agent | `paused`, `ready-for-deployment` |
+| `ready-for-deployment` | All PRs merged; awaiting deployment window and/or manual steps | Agent / Human | `deployed` |
+| `deployed` | Code is live in production; manual steps (if any) may still be pending | Human | `done` |
+| `done` | All code deployed; all `manual_steps` completed; feature is fully live | Human | _(terminal)_ |
+| `paused` | Temporarily halted (external blocker, priority shift, or scope renegotiation) | Human | `active`, `abandoned` |
+| `abandoned` | Will not be completed | Human | _(terminal)_ |
+
+> **`done` gate:** An epic should remain at `deployed` until all entries in `delivery.yaml → manual_steps` have a non-null `completed_at`. Epics with no `manual_steps` can transition directly from `deployed` to `done`.
+
+> **Deprecated statuses:** `draft`, `discussing`, `decomposed`, `renegotiating`, and `delivered` are no longer part of the canonical vocabulary. Existing epics using these values should be migrated to `pending` (for pre-active stages) or the appropriate new status.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> draft
-    draft --> discussing
-    draft --> abandoned
-    discussing --> decomposed
-    discussing --> abandoned
-    decomposed --> active
-    decomposed --> abandoned
+    [*] --> pending
+    pending --> active
+    pending --> abandoned
     active --> paused
-    active --> renegotiating
-    active --> delivered
+    active --> ready_for_deployment : ready-for-deployment
     paused --> active
     paused --> abandoned
-    renegotiating --> active
-    renegotiating --> abandoned
-    delivered --> done
-    delivered --> active
+    ready_for_deployment --> deployed
+    deployed --> done
     done --> [*]
     abandoned --> [*]
 ```
@@ -250,15 +245,9 @@ Task complexity is estimated using a Fibonacci scale. This is set in the task's 
 - Tools like `bin/dev wf:status` read these fields to report on workflow state.
 - Human approval is recorded by changing `status: pending-approval` → `status: approved` in the manifest.
 
-### The only physical move: archiving
+### No physical file moves
 
-The **sole exception** is archiving completed work. When an epic reaches `done` status:
-
-```bash
-bin/dev wf:archive <epic-id>
-```
-
-This moves the epic's directory to `done/`, updates its status, and commits the change. This is the only time files move between folders as part of a status transition.
+**Epics never move between directories.** All epics remain in `epics/`. The `status` field is the sole indicator of lifecycle state. Running `bin/dev wf:archive` updates the status to `done` in-place — no files move.
 
 ### Why field-based?
 

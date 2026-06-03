@@ -79,8 +79,12 @@ _Jira tickets are created during task refinement (Prompt 7), NOT at breakdown ti
 ### When to Create
 
 - **Timing:** After each task is refined via Prompt 7 (status moves to `refined`).
-- **Why not earlier?** At breakdown time, tasks are shells with minimal detail. Creating tickets then leads to barren tickets that need heavy updates later.
+- **Why not earlier?** At breakdown time, tasks are shells with minimal detail. Creating tickets then leads to barren tickets that need heavy updates later. The refinement session is where requirements become concrete and acceptance criteria become verifiable — that is the right moment to create the Jira record.
 - **If Atlassian MCP is available:** The agent creates the ticket automatically during Prompt 7, following `config/jira-ticket-templates.md` for content structure.
+
+### Content Standard
+
+See `config/jira-ticket-templates.md` for the minimum ticket content standard. Every ticket must include at minimum: context (epic link, target repo, dependencies), goal statement, requirements list, acceptance criteria (3+ verifiable criteria), and dev notes (target repo, key files, patterns to follow).
 
 ### How to Create
 

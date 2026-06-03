@@ -1,8 +1,9 @@
 # Jira Ticket Templates for SDD Tasks
 
-> **Location:** `config/jira-ticket-templates.md`  
-> **Used by:** Prompt 7 (Refine Request), Prompt 11 (Amend Epic)  
-> **Purpose:** Defines the minimum content standard for Jira tickets created from SDD tasks.
+> **Location:** `config/jira-ticket-templates.md` (hub root — canonical)
+> **Used by:** Prompt 7 (Refine Request), Prompt 5/6 (Epic Creation), Prompt 9 (Amend Epic)
+> **Purpose:** Defines the minimum content standard for Jira tickets created from SDD tasks and epics.
+> Jira tickets look the same regardless of target repo — this is the single hub-level template with no repo-level overrides.
 
 ---
 
@@ -13,6 +14,7 @@
 | After task refinement (Prompt 7) | **Standard Task Ticket** | Task status moves to `refined` |
 | After plan approval | **Enriched Ticket** (optional) | Plan status moves to `approved` |
 | Experiment-related task | **Experiment Task Ticket** | Task involves A/B test infrastructure |
+| After epic is confirmed and Jira epic needed | **Epic Ticket Template** | End of Prompt 5 / Prompt 6 |
 
 ---
 
@@ -66,9 +68,14 @@ Examples:
 
 ## Acceptance Criteria
 
-- [ ] [Scenario 1: Given X, When Y, Then Z]
-- [ ] [Scenario 2: Given X, When Y, Then Z]
-- [ ] [Scenario 3: Given X, When Y, Then Z]
+<!-- Use EARS notation for system/API-level criteria (preferred):         -->
+<!--   WHEN <trigger>, the system SHALL <response>                        -->
+<!--   IF <unwanted condition>, the system SHALL <response>               -->
+<!-- Use Given/When/Then for UI/behavioral flow criteria.                 -->
+<!-- See common-specs/writing-specs.md for the full EARS pattern reference. -->
+- [ ] [Criterion 1]
+- [ ] [Criterion 2]
+- [ ] [Criterion 3]
 
 ## Dev Notes
 
@@ -173,3 +180,95 @@ After a plan is approved, optionally update the ticket with implementation-level
 4. **Use consistent verb prefixes** in titles: Create, Migrate, Register, Add, Remove, Refactor, Fix, Update.
 5. **Tag with epic** — Always set the Epic Link field in Jira to the parent epic ticket.
 6. **Include target repo** — Always specify which repo the task executes in.
+
+---
+
+## Epic Ticket Template
+
+Use this template when creating the Jira epic ticket at the end of Prompt 5 (epic discovery) or Prompt 6 (task graph breakdown). Template sections map 1:1 to fields in `epics/_templates/epic.md` for agent auto-population.
+
+### Title Format
+
+```
+[Initiative]: [Outcome]
+```
+
+Examples:
+- "Feature Area: surface key capability on primary page"
+- "Data Layer: unified atom with experiment infrastructure"
+
+### Description
+
+```markdown
+## Problem Statement
+
+<!-- Maps to: epic.md → Problem Statement -->
+<!-- Why does this work need to exist? What user or business problem are we solving? Why now? -->
+
+## Product Vision
+
+<!-- Maps to: epic.md → Product Vision -->
+<!-- What does the world look like when this is done? Describe the end-state from the user's perspective. -->
+
+## Success Metrics
+
+<!-- Maps to: epic.md → Success Criteria -->
+<!-- Measurable criteria that define success for the epic. Use EARS notation for system-level metrics. -->
+- [ ] [Metric 1 — measurable, with target value if known]
+- [ ] [Metric 2]
+
+## Scope: In
+
+<!-- Maps to: epic.md → Scope Boundaries → In Scope -->
+- [What the epic will deliver]
+
+## Scope: Out
+
+<!-- Maps to: epic.md → Scope Boundaries → Out of Scope -->
+<!-- Explicit exclusions prevent scope creep in Jira conversations. -->
+- [What the epic will NOT deliver]
+
+## Repos Involved
+
+<!-- Maps to: epic.md → Repos Involved + scope.repos frontmatter -->
+
+| Repo | Role in this epic | Type of changes |
+|------|-------------------|------------------|
+| `repo-name` | [e.g., "New API endpoint"] | [e.g., "Backend logic + DB migration"] |
+
+## Links
+
+<!-- Maps to: epic.md → references frontmatter -->
+- **Confluence PRD:** [URL]
+- **Figma designs:** [URL]
+- **Hub epic.md:** [path in this repo, e.g., epics/1-epic-name/epic.md]
+
+## Task Summary
+
+<!-- Populated after Prompt 6 completes the task graph. -->
+<!-- Update status column as tasks are completed. -->
+
+| Task | Title | Repo | Depends on | Status |
+|------|-------|------|------------|--------|
+| 1 | [Title] | [repo] | None | planned |
+| 2 | [Title] | [repo] | Task 1 | draft |
+
+## Definition of Done
+
+<!-- Maps to: epic.md → Definition of Done -->
+<!-- This epic ticket is not "Done" in Jira until ALL items below are checked. -->
+- [ ] **Deployment:** [Feature flags removed / staged rollout complete / fully launched]
+- [ ] **Monitoring:** [Alerts configured / dashboards created / error rate baseline confirmed]
+- [ ] **Sign-offs:** [QA regression pass / PM acceptance / stakeholder demo]
+- [ ] **Documentation:** [User docs updated / training materials delivered / runbook created]
+- [ ] **Success metrics:** [Metric X meets threshold Y within Z time period]
+- [ ] **Manual steps:** All `delivery.yaml → manual_steps` entries completed (if any)
+```
+
+### When to Update the Epic Ticket
+
+| Moment | What to update |
+|--------|---------------|
+| After Prompt 6 (task graph finalized) | Add child ticket links to Task Summary table; link child tickets to epic in Jira |
+| After each task is completed | Update Task Summary table status for that task |
+| After epic amendments (Prompt 9 / sdd-amend-epic) | Update Scope In/Out, Repos Involved, Task Summary as needed |

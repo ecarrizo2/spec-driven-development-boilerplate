@@ -1,20 +1,35 @@
 # Git Workflow — Common Conventions
 
-> **Scope:** These conventions apply to ALL repos managed by this hub unless a repo's own `sdd/agent-specs/git-workflow.md` overrides them.
+> **Scope:** These conventions apply to ALL repos managed by this hub (including the hub repo itself) unless a repo's own `sdd/agent-specs/git-workflow.md` overrides them.
+> For hub-specific operational guidance (when to commit in the hub, submodule management), see `agent-development/agent-specs/git-workflow.md`.
 
 ## Branching Model
 
 - **Main branch:** Defined per-repo in `config/repos.yaml` (usually `main` or `develop`)
-- **Feature branches:** `<type>/<ticket-id>-<short-description>`
+- **Feature branches:** `<type>/<ticket-id>_<short-description>`
 - **Branch types:** `feat`, `fix`, `chore`, `hotfix`, `refactor`, `docs`, `ci`
 
 ## Branch Naming Examples
 
 ```
-feat/PROJ-123-add-awards-endpoint
-fix/PROJ-456-null-check-awards
-chore/PROJ-789-update-dependencies
+# Target repo branches
+feat/PROJ-123_add-awards-endpoint
+fix/PROJ-456_null-check-awards
+chore/PROJ-789_update-dependencies
+
+# Hub branches
+epic/PROJ-55110_epic-name
+plan/PROJ-123_task-name
 ```
+
+### Hub-specific branch types
+
+The hub repo uses two additional reserved types:
+
+| Type | Format | Purpose |
+|------|--------|--------|
+| `epic` | `epic/<ticket-id>_<description>` | Define an epic and its requests. Merged to `main` once the task graph is approved. |
+| `plan` | `plan/<ticket-id>_<description>` | One per task. Contains plan files, SDD state, and doc updates. Merged to `main` after execution is complete. |
 
 ## Commit Conventions
 

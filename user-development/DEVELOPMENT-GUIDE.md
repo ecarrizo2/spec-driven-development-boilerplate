@@ -11,6 +11,10 @@ This document is the definitive human-facing reference for operating a Spec-Driv
 > - `common-specs/git-workflow.md` — Git conventions across all repos
 > - `common-specs/pr-conventions.md` — PR format and lifecycle
 
+> **Team flow:** For the end-to-end squad choreography integrating Figma, Jira, and GitHub, see [SQUAD_FLOW.md](./SQUAD_FLOW.md).
+>
+> **Auditing:** For delivery metrics, amendment tracing, and retrospective analysis, see [AUDITING-AND-METRICS.md](./AUDITING-AND-METRICS.md).
+
 ---
 
 ## Table of Contents
@@ -52,11 +56,21 @@ This hub extends Spec-Driven Development to multi-repository architectures:
 - **One developer per epic at a time.** But multiple epics can be active concurrently (each targeting different task subsets).
 - **Source code is the source of truth.** If code contradicts a spec, code wins — update the spec.
 
+### Why the Rules Exist — SDD Failure Modes
+
+The pipeline rules (fresh sessions, blast radius, approval gates, spec cascade) prevent three failure modes that emerge in agent-assisted development:
+
+| Failure Mode | What it means |
+|---|---|
+| **intent drift** | The requirement in the spec diverges from what gets built — through accumulated misinterpretation across sessions, rewrites, or handoffs. |
+| **context decay** | An agent session loses architectural context built in earlier sessions — leading to decisions incompatible with established patterns. |
+| **unverifiable output** | Acceptance criteria are too vague to prove pass/fail. "It works" is not a criterion. |
+
+These names are the hub's shared vocabulary for retrospectives and escalation discussions. See [`common-specs/writing-specs.md`](../common-specs/writing-specs.md) for the full methodology reference and EARS notation guide.
+
 ### Approval is Field-Based
 
 Approval is tracked via **status fields in YAML frontmatter**, not by moving files between folders. A plan with `approval.status: approved` in its `manifest.yaml` is ready for execution regardless of which directory it's in.
-
-The only physical file move is **archiving** completed work to `done/` — this happens after execution.
 
 ---
 
@@ -73,13 +87,11 @@ hub/
 │   │   ├── epic.md                     ← Epic definition template
 │   │   ├── task-graph.md               ← Task DAG template (with `repo` field per task)
 │   │   └── delivery.yaml               ← PR tree template (with `repo` field per node)
-│   ├── active/                         ← Epics currently being worked on
-│   │   └── N-epic-name/
-│   │       ├── epic.md
-│   │       ├── task-graph.md
-│   │       ├── delivery.yaml
-│   │       └── requests/
-│   └── done/                           ← Archived completed epics
+│   └── <epic-name>/                    ← One folder per epic (flat — no active/ or done/ subdirs)
+│       ├── epic.md
+│       ├── task-graph.md
+│       ├── delivery.yaml
+│       └── requests/
 │
 ├── repos/                              ← Git submodules (agent-managed ONLY)
 │   ├── repo-a/                         ← Submodule → actual repo
@@ -91,9 +103,9 @@ hub/
 │       │   └── commands.yaml           ← Repo-level bin/dev equivalent
 │       ├── agent-development/
 │       │   ├── agent-specs/            ← Context for agents working in this repo
-│       │   ├── pending/                ← Dispatched requests land here
+│       │   ├── requests/               ← Dispatched requests land here
 │       │   ├── plans/                  ← Plans produced here
-│       │   └── done/                   ← Archive
+│       │   └── quick-fixes/            ← Quick fix logs
 │       └── user-development/
 │
 ├── common-specs/                       ← Universal conventions (all repos)
@@ -115,8 +127,15 @@ hub/
 ├── user-development/                   ← Human-facing development assets
 │   ├── DEVELOPMENT-GUIDE.md           ← You are here
 │   ├── STATUS-REFERENCE.md            ← All status enums and transitions
+│   ├── AUDITING-AND-METRICS.md        ← Delivery metrics and amendment tracing
 │   ├── PR_TEMPLATE.md                 ← PR description template
-│   └── prompts/                       ← Reusable prompt templates (0–8)
+│   └── prompts/                       ← Reusable prompt templates (0–9)
+│
+├── .agents/                            ← Project-local agent skills (Zed / Claude Code)
+│   └── skills/                         ← One subdirectory per skill (sdd-*)
+│
+├── .github/                            ← GitHub-specific files
+│   └── prompts/                        ← Symlinks → .agents/skills/ for VS Code /sdd-* commands
 │
 ├── bin/dev                             ← Hub CLI (coordination commands only)
 ├── AGENTS.md                           ← Rules for AI coding agents
@@ -130,7 +149,7 @@ hub/
 |----------|----------|-------|
 | Repo registry | `config/repos.yaml` | All repos, tech stacks, deploy info, topology |
 | Team config | `config/teams.yaml` | Jira project, branch naming, conventions |
-| Epic planning | `epics/active/N-name/` | epic.md, task-graph.md, delivery.yaml, requests/ |
+| Epic planning | `epics/N-name/` | epic.md, task-graph.md, delivery.yaml, requests/ |
 | Cross-repo docs | `documentation/<repo>/` | Fallback when repo lacks its own arch docs |
 | Interface contracts | `contracts/<repo>/` | API schemas, event definitions |
 | System topology | `architectural-schemas/` | How repos connect |
@@ -253,9 +272,9 @@ fallback-sdd/<repo>/
 │   │   ├── application-overview.md
 │   │   ├── architecture-breakdown.md
 │   │   └── agent-instructions.md
-│   ├── pending/                ← Dispatched task requests land here
+│   ├── requests/               ← Dispatched task requests land here
 │   ├── plans/                  ← Plans are created here
-│   └── done/                   ← Completed work archived here
+│   └── quick-fixes/            ← Quick fix logs
 └── user-development/
     └── prompts/                ← (Optional) repo-specific prompt overrides
 ```
@@ -274,28 +293,12 @@ This moves `fallback-sdd/<name>/` into the repo as `repos/<name>/sdd/`, creates 
 
 ## The Sync Rule
 
-**After completing execution of a task, before ending your session, you must update both sides:**
+**After completing execution of a task, before ending your session:**
 
-### 1. Local Plan Status (in target repo)
-
-- Plan's `manifest.yaml` → status: `done`
-- Request → archived to `done/requests/`
-- Plan folder → archived to `done/plans/`
-
-### 2. Hub Coordination State (at hub root)
-
-- `epics/active/<epic>/task-graph.md` → task status: `done`
-- `epics/active/<epic>/delivery.yaml` → node status: `ready-for-review`, add `pr_url` and `branch`
-
-### Why Both?
-
-The local state is what the repo's SDD pipeline tracks. The hub state is what coordinates across repos. Without the sync, the hub doesn't know a task completed, and other tasks that depend on it won't be unblocked.
-
-### When Sync Happens
-
-- After successful plan execution (agent does this automatically)
-- After PR merge (human updates delivery.yaml status → `merged`)
-- After scope changes (update task-graph negotiations + delivery.yaml negotiation_impacts)
+1. **Update plan status** — set `manifest.yaml` → `status: done` on the hub plan branch
+2. **Update hub task-graph** — set the task's status to `done` in `epics/<epic>/task-graph.md` on the hub plan branch
+3. **Update hub delivery manifest** — add the target repo's PR URL and branch name to `epics/<epic>/delivery.yaml` on the hub plan branch
+4. **Mark hub plan PR ready for review** — the plan branch PR moves from draft to ready once the target repo PR exists and the plan is complete
 
 ---
 
@@ -323,13 +326,13 @@ graph LR
 
 | Step | Who | Prompt | Output |
 |---|---|---|---|
-| **Define** | EM + Tech Lead + Agent | Prompt 5 | `epic.md` (status: `discussing` → `decomposed`) |
-| **Break Down** | Tech Lead + Agent | Prompt 6 | `task-graph.md` + request shells + `delivery.yaml` |
-| **Refine** | Tech Lead + Agent | Prompt 7 | Full request documents (status: `refined`) + Jira tickets |
-| **Dispatch** | Tech Lead / Agent | Prompt 8 / `bin/dev dispatch` | Request copied to target repo |
-| **Execute** | Agent | Prompts 1 → 2 | Code, PRs, plan completion |
-| **Amend** _(if needed)_ | Tech Lead + Agent | Prompt 11 | Updated graph, new/modified tasks, negotiation record |
-| **Done** | Human | `bin/dev wf:archive` | Epic moved to `done/` |
+| **Define** | EM + Tech Lead + Agent | Skill `sdd-create-epic` (Prompt 5) | `epic.md` (status: `pending`) |
+| **Break Down** | Tech Lead + Agent | Skill `sdd-break-down-epic` (Prompt 6) | `task-graph.md` + request shells + `delivery.yaml` |
+| **Refine** | Tech Lead + Agent | Skill `sdd-refine-request` (Prompt 7) | Full request documents (status: `refined`) + Jira tickets |
+| **Dispatch** | Tech Lead / Agent | Skill `sdd-dispatch-tasks` (Prompt 8) / `bin/dev dispatch` | Request copied to target repo |
+| **Execute** | Agent | Skills `sdd-plan-task` + `sdd-execute-plan` (Prompts 1 → 2) | Code, PRs, plan completion |
+| **Amend** _(if needed)_ | Tech Lead + Agent | Skill `sdd-amend-epic` (Prompt 9) | Updated graph, new/modified tasks, negotiation record |
+| **Done** | Human | `bin/dev wf:archive` | Epic status updated in-place |
 
 ### Roles & Responsibilities (RACI)
 
@@ -343,7 +346,7 @@ graph LR
 | Dispatch (Prompt 8) | — | — | **R/A** | — |
 | Plan review & approval | — | A | **R** | — |
 | Execution (Prompts 1-2) | — | — | I | **R/A** |
-| Amendment (Prompt 11) | C | I | **R/A** | — |
+| Amendment (Prompt 9) | C | I | **R/A** | — |
 
 _R = Responsible, A = Accountable, C = Consulted, I = Informed_
 
@@ -352,9 +355,9 @@ _R = Responsible, A = Accountable, C = Consulted, I = Informed_
 | Phase | Required Inputs | Optional Inputs | Who Provides |
 |-------|-----------------|-----------------|-------------|
 | **Define** (Prompt 5) | Product brief (PRD, Confluence doc, or detailed Slack summary) | Technical Design Document, Figma designs | PM provides brief; Tech Lead provides TDD |
-| **Break Down** (Prompt 6) | Completed `epic.md` with status `decomposed` | Software Design Document with architectural approach | Tech Lead |
+| **Break Down** (Prompt 6) | Completed `epic.md` with status `pending` | Software Design Document with architectural approach | Tech Lead |
 | **Refine** (Prompt 7) | Request shell from Prompt 6, access to target repo source code | Predecessor task outputs, contracts | Tech Lead + codebase |
-| **Amend** (Prompt 11) | Active epic path + description of what changed | Updated designs, revised PRD, policy document | PM/EM provides trigger; Tech Lead executes |
+| **Amend** (Prompt 9) | Active epic path + description of what changed | Updated designs, revised PRD, policy document | PM/EM provides trigger; Tech Lead executes |
 
 ### The Prompt Chain: Data Flow
 
@@ -452,13 +455,13 @@ bin/dev dispatch <epic-id> <task-id>
 
 This command:
 1. Reads the task's `repo` field from `task-graph.md`
-2. Resolves the target: `repos/<repo>/sdd/pending/` or `fallback-sdd/<repo>/agent-development/pending/`
-3. Copies the request file from `epics/active/<epic>/requests/` to the target
+2. Resolves the target: `repos/<repo>/sdd/requests/` or `fallback-sdd/<repo>/agent-development/requests/`
+3. Copies the request file from `epics/<epic>/requests/` to the target
 4. Updates task status to `activated` in `task-graph.md`
 
 ### Manual Dispatch (if needed)
 
-1. Copy `epics/active/<epic>/requests/<N>-name.md` → target repo's `pending/`
+1. Copy `epics/<epic>/requests/<N>-name.md` → target repo's `requests/`
 2. Update `task-graph.md`: set task status to `activated`
 3. Ensure the request's frontmatter has `status: activated` and `target_repo: <name>`
 
@@ -471,7 +474,7 @@ This command:
 
 ### Dispatch to Repos Without SDD
 
-For repos using fallback, dispatch targets `fallback-sdd/<repo>/agent-development/pending/`. The request lives at the hub level but the agent treats it exactly as if it were `sdd/pending/` inside the repo.
+For repos using fallback, dispatch targets `fallback-sdd/<repo>/agent-development/requests/`.
 
 ---
 
@@ -491,23 +494,21 @@ graph LR
 
 | Stage | Who | What Happens |
 |-------|-----|--------------|
-| **Request** | (Already dispatched) | Request sits in repo's `pending/` with `status: activated` |
-| **Plan** | Agent (Prompt 1) | Reads repo specs, produces plan folder in repo's `plans/` |
+| **Request** | (Already dispatched) | Request sits in repo's `requests/` with `status: activated` |
+| **Plan** | Agent (Skill `sdd-plan-task` / Prompt 1) | Reads repo specs, produces plan folder in repo's `plans/` |
 | **Approve** | Human | Reviews spec, resolves open questions, sets `approval.status: approved` |
-| **Execute** | Agent (Prompt 2) | Creates branch, opens draft PR, commits stages, marks ready for review |
-| **Done** | Agent | Archives plan + request, syncs back to hub |
+| **Execute** | Agent (Skill `sdd-execute-plan` / Prompt 2) | Creates branch, opens draft PR, commits stages, marks ready for review |
+| **Done** | Agent | Updates plan status in-place, syncs back to hub |
 
 ### Where Artifacts Live
 
 For a repo **with its own SDD** (`repos/<name>/sdd/`):
-- Requests: `repos/<name>/sdd/agent-development/pending/`
+- Requests: `repos/<name>/sdd/agent-development/requests/`
 - Plans: `repos/<name>/sdd/agent-development/plans/`
-- Done: `repos/<name>/sdd/agent-development/done/`
 
 For a repo **using fallback** (`fallback-sdd/<name>/`):
-- Requests: `fallback-sdd/<name>/agent-development/pending/`
+- Requests: `fallback-sdd/<name>/agent-development/requests/`
 - Plans: `fallback-sdd/<name>/agent-development/plans/`
-- Done: `fallback-sdd/<name>/agent-development/done/`
 
 ### Build/Test/Lint Commands
 
@@ -538,7 +539,7 @@ All of these must be true:
 2. Paste `user-development/prompts/4-quick-fix.md`.
 3. Specify the **target repo** and the change description.
 4. The agent works inside `repos/<name>/`, makes the change, runs verification.
-5. Log file created in the target repo's `done/quick-fixes/` (or `fallback-sdd/<name>/agent-development/done/quick-fixes/`).
+5. Log file created in the target repo's `quick-fixes/` (or `fallback-sdd/<name>/agent-development/quick-fixes/`).
 
 ### Escape Hatch
 
@@ -623,7 +624,7 @@ Full details in `common-specs/pr-conventions.md`.
 ## Prompt Templates
 
 | # | File | Type | Mode | Purpose |
-|---|------|------|------|--------|
+|---|------|------|------|-------|
 | 0 | `0-bootstrap-hub.md` | One-shot | Coordination | Bootstrap hub context (specs, docs, fallback-sdd) for registered repos |
 | 1 | `1-plan-task.md` | One-shot | Execution | Generate a plan from an activated request (in target repo) |
 | 2 | `2-execute-plan.md` | One-shot | Execution | Execute an approved plan (in target repo) |
@@ -633,9 +634,31 @@ Full details in `common-specs/pr-conventions.md`.
 | 6 | `6-break-down-epic.md` | One-shot | Coordination | Decompose epic → task-graph + delivery.yaml + request shells |
 | 7 | `7-refine-epic-request.md` | Interactive | Coordination | Refine a shell into full request + create Jira ticket |
 | 8 | `8-dispatch-tasks.md` | One-shot | Coordination | Dispatch refined requests to target repos |
-| 11 | `11-amend-epic.md` | Interactive | Coordination | Amend an active epic — insert/split/remove/resequence tasks |
+| 9 | `9-amend-epic.md` | Interactive | Coordination | Amend an active epic — insert/split/remove/resequence tasks |
 
-**Interactive prompts** (3, 5, 7, 11): The agent does NOT write files until the human declares refinement complete.
+**Interactive prompts** (3, 5, 7, 9): The agent does NOT write files until the human declares refinement complete.
+
+## Skills
+
+Skills are the preferred way to invoke these workflows in modern IDEs. Each skill matches a prompt by description:
+
+| Skill | Equivalent Prompt | IDE Support |
+|-------|------------------|-------------|
+| `sdd-bootstrap-hub` | Prompt 0 | Zed, Claude Code (auto), VS Code (`/sdd-bootstrap-hub`) |
+| `sdd-plan-task` | Prompt 1 | Zed, Claude Code (auto), VS Code (`/sdd-plan-task`) |
+| `sdd-execute-plan` | Prompt 2 | Zed, Claude Code (auto), VS Code (`/sdd-execute-plan`) |
+| `sdd-create-request` | Prompt 3 | Zed, Claude Code (auto), VS Code (`/sdd-create-request`) |
+| `sdd-quick-fix` | Prompt 4 | Zed, Claude Code (auto), VS Code (`/sdd-quick-fix`) |
+| `sdd-create-epic` | Prompt 5 | Zed, Claude Code (auto), VS Code (`/sdd-create-epic`) |
+| `sdd-break-down-epic` | Prompt 6 | Zed, Claude Code (auto), VS Code (`/sdd-break-down-epic`) |
+| `sdd-refine-request` | Prompt 7 | Zed, Claude Code (auto), VS Code (`/sdd-refine-request`) |
+| `sdd-dispatch-tasks` | Prompt 8 | Zed, Claude Code (auto), VS Code (`/sdd-dispatch-tasks`) |
+| `sdd-amend-epic` | Prompt 9 | Zed, Claude Code (auto), VS Code (`/sdd-amend-epic`) |
+| `sdd-retro-analysis` | `9-retro-analysis.md` | Zed, Claude Code (auto), VS Code (`/sdd-retro-analysis`) |
+
+**Skill files:** `.agents/skills/<name>/SKILL.md` — canonical entry point
+**VS Code:** `.github/prompts/<name>.prompt.md` — symlinks for `/sdd-*` commands
+**Copy-paste fallback:** `user-development/prompts/` — works in any editor
 
 ### When to Use What
 

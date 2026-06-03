@@ -1,7 +1,7 @@
 # Git Workflow — Hub Level
 
-> **This describes git conventions for the HUB REPO itself.**
-> For conventions within managed repos, see `common-specs/git-workflow.md` or the repo's own git-workflow spec.
+> **This describes git conventions for the HUB REPO itself** (when to commit, what to commit, submodule management).
+> For branch naming formats, commit message rules, and PR conventions that apply to ALL repos, see `common-specs/git-workflow.md`.
 
 ## Hub Branching
 
