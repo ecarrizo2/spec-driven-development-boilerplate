@@ -26,3 +26,14 @@ See `architectural-schemas/system-overview.md` for the full service diagram.
 2. **Task Dispatch** — Send refined requests to target repos for execution
 3. **Execution Tracking** — Monitor task/PR status across all repos via delivery manifests
 4. **Coordination** — Manage dependencies, merge ordering, and deployment sequencing
+
+## Common Specs (Priority 4 — Hub Universal)
+
+These files in `common-specs/` apply to all repos managed by this hub and are resolved by the spec cascade at Priority 4:
+
+| File | Purpose |
+|---|---|
+| `common-specs/git-workflow.md` | Branching, commit conventions, versioning |
+| `common-specs/pr-conventions.md` | PR structure, review process, merge strategy |
+| `common-specs/sdd-process.md` | SDD pipeline rules, blast radius, plan structure |
+| `common-specs/writing-specs.md` | EARS notation, SDD failure mode taxonomy, acceptance criteria quality bar |

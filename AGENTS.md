@@ -45,7 +45,7 @@ When executing a task in `<repo>`, read specs in this priority order:
 | 1 | Task plan | The plan's `manifest.yaml` + stage files (blast radius, instructions) |
 | 2 | Repo-level specs | `repos/<repo>/sdd/agent-development/agent-specs/` OR `fallback-sdd/<repo>/agent-development/agent-specs/` |
 | 3 | Hub documentation | `documentation/<repo>/` + `contracts/<repo>/` + `architectural-schemas/` |
-| 4 | Common specs | `common-specs/git-workflow.md`, `common-specs/pr-conventions.md`, `common-specs/sdd-process.md` |
+| 4 | Common specs | `common-specs/git-workflow.md`, `common-specs/pr-conventions.md`, `common-specs/sdd-process.md`, `common-specs/writing-specs.md` |
 
 **Rule:** If a spec exists at the repo level, it takes precedence over the hub's common/fallback version.
 
@@ -55,11 +55,57 @@ When executing a task in `<repo>`, read specs in this priority order:
 
 After completing execution of a task, before ending your session:
 
-1. **Update plan status locally** — in the target repo's `sdd/` (or `fallback-sdd/<repo>/`)
-2. **Update hub task-graph** — set the task's status to `done` in `epics/active/<epic>/task-graph.md`
-3. **Update hub delivery manifest** — add PR URL and branch name to `epics/active/<epic>/delivery.yaml`
+1. **Update plan status** — set `manifest.yaml` → `status: done` on the hub plan branch
+2. **Update hub task-graph** — set the task's status to `done` in `epics/<epic>/task-graph.md` on the hub plan branch
+3. **Update hub delivery manifest** — add the target repo's PR URL and branch name to `epics/<epic>/delivery.yaml` on the hub plan branch
+4. **Mark hub plan PR ready for review** — the plan branch PR moves from draft to ready once the target repo PR exists and the plan is complete
 
 This keeps both the local and coordination-level state in sync.
+
+---
+
+## Hub Branch Model
+
+The hub uses **two distinct branch types**. Each has a different lifecycle.
+
+### Epic branches — `epic/<ticket-id>_<description>`
+
+Define the epic. Short-lived. Merged to `main` once all requests are refined and the task graph is approved — **before** execution begins.
+
+```
+epic/PROJ-55110_epic-name
+  └── epics/<epic>/epic.md
+  └── epics/<epic>/task-graph.md
+  └── epics/<epic>/delivery.yaml
+```
+
+Lifecycle: `draft PR → human refines requests → approved → merge to main`
+
+### Plan branches — `plan/<ticket-id>_<description>`
+
+One per task. Contain the plan files, SDD state updates, and documentation changes for that specific task. Created when the agent begins planning; merged to `main` after the task is fully executed and the target repo PR is merged.
+
+```
+plan/PROJ-123_task-name
+  └── fallback-sdd/<repo>/agent-development/plans/<task>/   ← plan files (status: done after execution)
+  └── epics/<epic>/task-graph.md                            ← status updated
+  └── epics/<epic>/delivery.yaml                            ← PR URL recorded
+  └── documentation/<repo>/XX-affected-doc.md               ← if fallback SDD
+```
+
+Lifecycle: `draft PR (plan under review) → approved → target repo PR created → execution → sync → ready for review → merge to main`
+
+### Target repo branches — `<type>/<ticket-id>_<description>`
+
+One per task. Contain only code changes. Linked to the hub plan PR via description.
+
+Lifecycle: `draft PR → implementation done → ready for code review → merge to <default-branch>`
+
+### Linking plan PR ↔ target repo PR
+
+Both PRs must reference each other:
+- Hub plan PR description: `**Target repo PR:** <org>/<repo>#<number>`
+- Target repo PR description: `**Hub plan PR:** <org>/<hub-repo-name>#<number>`
 
 ---
 
@@ -118,3 +164,27 @@ Does repos/<name>/sdd/ exist?
 ```
 
 This pattern applies to: agent-specs, pending requests, plans, config/commands.yaml, and all workflow artifacts.
+
+---
+
+## Available Skills
+
+Skills are invoked naturally in Zed and Claude Code — describe what you want and the matching skill activates automatically. In VS Code, use `/sdd-<name>`.
+
+| Skill | Description | Mode |
+|-------|-------------|------|
+| `sdd-bootstrap-hub` | Initialize hub context — generate overview docs, commands config, and fallback-sdd structures for registered repos | Coordination |
+| `sdd-plan-task` | Create an implementation plan from an activated task request — produces `manifest.yaml`, `specification.md`, and stage files | Execution |
+| `sdd-execute-plan` | Execute an approved plan — creates branch, opens draft PR, runs stages with verification checkpoints | Execution |
+| `sdd-create-request` | Interactive technical discovery → write a standalone task request (no epic needed) | Coordination |
+| `sdd-quick-fix` | Implement a small, obvious change (1–3 files, no design decisions) without a full plan | Execution |
+| `sdd-create-epic` | Interactive product discovery → write a cross-repo epic with Definition of Done | Coordination |
+| `sdd-break-down-epic` | Decompose an epic into a task graph, delivery manifest, and request shells | Coordination |
+| `sdd-refine-request` | Refine an epic task shell into a fully specified request with acceptance criteria | Coordination |
+| `sdd-dispatch-tasks` | Dispatch refined tasks to target repos and update statuses to `activated` | Coordination |
+| `sdd-amend-epic` | Interactively amend an in-flight epic — add, split, remove, or resequence tasks | Coordination |
+| `sdd-retro-analysis` | Retrospective analysis on completed epic metrics — talking points + process recommendations | Coordination |
+
+**Skill files:** `.agents/skills/<name>/SKILL.md`
+**VS Code aliases:** `.github/prompts/<name>.prompt.md`
+**Copy-paste fallback:** `user-development/prompts/`

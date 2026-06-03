@@ -1,3 +1,10 @@
+> **🎯 Preferred invocation:** In Zed or Claude Code, describe what you want —
+> the `sdd-quick-fix` skill activates automatically. In VS Code, use `/sdd-quick-fix`.
+>
+> **📋 Fallback:** Copy-paste the content below into any agent conversation.
+
+---
+
 # Prompt: Quick Fix
 
 > **Usage:** Copy this prompt into a new agent conversation. Replace `<CHANGE_DESCRIPTION>` with a plain-language description of the small change you need (e.g., "Extract the API base URL string used in 3 service files into a shared constant" or "Rename the `/books/list` endpoint to `/books`").
@@ -49,7 +56,7 @@ Examples of quick fixes:
 
 ## Quick Fix Log Entry
 
-After completing the change, create a log file in `agent-development/done/quick-fixes/` named with today's date and a short description:
+After completing the change, create a log file in `agent-development/quick-fixes/` named with today's date and a short description:
 
 **Filename pattern:** `YYYYMMDD-short-description.md` (e.g., `20250115-extract-api-base-url-constant.md`)
 

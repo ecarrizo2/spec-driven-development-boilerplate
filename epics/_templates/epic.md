@@ -4,7 +4,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 id: null              # Sequential number (e.g., 1, 2, 3)
 title: ""
-status: draft         # draft | discussing | decomposed | active | paused | renegotiating | delivered | done | abandoned
+status: pending       # pending | active | paused | ready-for-deployment | deployed | done | abandoned
 complexity: null      # Fibonacci: 1 | 2 | 3 | 5 | 8 | 13 — overall epic sizing
 created: null         # YYYY-MM-DD
 last_updated: null    # YYYY-MM-DD
@@ -52,6 +52,9 @@ _Numbered product requirements. These are outcomes, not implementation details._
 - **R3.** ...
 
 ## Success Criteria
+
+<!-- Notation: use EARS patterns for system/API-level criteria (e.g., "WHEN a vendor..., the system SHALL...") -->
+<!-- and Given/When/Then for behavioral/UI criteria. See common-specs/writing-specs.md for the full reference. -->
 
 _How do we know this is done and working? Measurable where possible._
 
@@ -109,6 +112,19 @@ _Key decisions from the interactive discovery session (Prompt 5). These provide 
 | # | Question | Decision | Rationale |
 |---|---|---|---|
 | 1 | ... | ... | ... |
+
+## Definition of Done
+
+_Established during epic creation (Prompt 5). Defines what "done" means for the entire epic — beyond individual task completion._
+
+- [ ] **Deployment:** [Feature flags removed / staged rollout complete / fully launched]
+- [ ] **Monitoring:** [Alerts configured / dashboards created / error rate baseline confirmed]
+- [ ] **Sign-offs:** [QA regression pass / PM acceptance / stakeholder demo]
+- [ ] **Documentation:** [User docs updated / training materials delivered / runbook created]
+- [ ] **Success metrics:** [Metric X meets threshold Y within Z time period]
+- [ ] **Manual steps:** All `delivery.yaml → manual_steps` entries have `completed_at` set (if any). Epics without manual steps can skip this criterion.
+
+_Adjust or remove criteria that don't apply. Add project-specific criteria as needed._
 
 ## References
 

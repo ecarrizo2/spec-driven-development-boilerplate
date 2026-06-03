@@ -1,3 +1,10 @@
+> **🎯 Preferred invocation:** In Zed or Claude Code, describe what you want —
+> the `sdd-bootstrap-hub` skill activates automatically. In VS Code, use `/sdd-bootstrap-hub`.
+>
+> **📋 Fallback:** Copy-paste the content below into any agent conversation.
+
+---
+
 # Prompt 0: Bootstrap a Multirepo Hub
 
 > **When to use:** Once — when setting up a new hub for your domain/project.

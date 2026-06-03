@@ -4,10 +4,14 @@
 # ─────────────────────────────────────────────────────────────────────────────
 plan_id: null                   # References manifest.yaml task_id
 title: ""
-status: draft                   # Mirrors manifest.yaml — for quick reference only
-# NOTE: Approval is tracked ONLY in manifest.yaml (plan_metadata.approval.status)
-# To approve this plan: set approval.status to "approved" in manifest.yaml
 ---
+
+# ═══════════════════════════════════════════════════════════════════════════
+# APPROVAL: The ONLY place to check or set plan approval status is:
+#   manifest.yaml → plan_metadata.approval.status
+#
+# Do NOT add a status field here — it goes stale and misleads agents.
+# ═══════════════════════════════════════════════════════════════════════════
 
 # Implementation Plan: Task <N> — <Short Descriptive Title>
 
@@ -28,7 +32,7 @@ Before starting, the implementing agent **must** read and internalize these file
 | Agent Instructions | `sdd/agent-development/agent-specs/agent-instructions.md` | Coding standards, dos/don'ts, naming, testing |
 | Agent Workflow | `sdd/agent-development/agent-specs/agent-workflow.md` | Execution rules, blast radius, commit timing |
 | Git Workflow | `sdd/agent-development/agent-specs/git-workflow.md` | Branching, commit conventions, versioning |
-| Task Definition | `sdd/agent-development/pending/<N>-<name>.md` | The task being implemented |
+| Task Definition | `sdd/agent-development/requests/<N>-<name>.md` | The task being implemented |
 <!-- Add any other relevant reference files (existing source files, previous plans, etc.) -->
 
 ---
@@ -134,9 +138,7 @@ Update human-facing documentation to reflect changes introduced by this plan.
 - [ ] No unrelated files were modified outside blast radius
 - [ ] `sdd/agent-development/agent-specs/` files are up to date
 - [ ] `README.md` and relevant docs are up to date
-- [ ] Plan `status` in manifest.yaml updated to `done`
-- [ ] Plan folder archived to `sdd/agent-development/done/plans/`
-- [ ] Request archived to `sdd/agent-development/done/requests/`
+- [ ] Plan `status` in `manifest.yaml` set to `done` (the plan folder stays in place — do NOT move it)
 
 ---
 

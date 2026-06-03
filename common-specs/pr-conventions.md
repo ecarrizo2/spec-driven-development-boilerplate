@@ -36,7 +36,18 @@ Every PR description should include:
 
 ## Cross-Repo PRs
 
-When an epic produces PRs in multiple repos:
-- Each PR's description links to related PRs in other repos
-- `deploy_notes` in the hub's `delivery.yaml` documents ordering requirements
-- A PR should NOT be merged if its `depends_on` PRs haven't merged yet (check `delivery.yaml`)
+When a task produces a hub plan PR and a target repo PR:
+
+**Hub plan PR description must include:**
+```
+**Target repo PR:** <org>/<repo>#<number>
+```
+
+**Target repo PR description must include:**
+```
+**Hub plan PR:** <org>/<hub-repo-name>#<number>
+```
+
+For epics spanning multiple repos, each PR links only to its direct counterpart. The hub's `delivery.yaml` is the authoritative record of all PRs across the epic.
+
+`deploy_notes` in `delivery.yaml` documents any ordering requirements. A PR should NOT be merged if its `depends_on` PRs haven't merged yet.
