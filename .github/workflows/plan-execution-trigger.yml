@@ -1,0 +1,309 @@
+name: Plan Execution Trigger
+
+on:
+  pull_request_review:
+    types: [submitted]
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+
+concurrency:
+  group: plan-execution-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    if: github.event.review.state == 'approved' && startsWith(github.event.pull_request.head.ref, 'plan/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate correlation ID
+        id: audit
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { generateCorrelationId, auditWorkflowStart } = require('./bin/sync-state/audit');
+            const cid = generateCorrelationId();
+            auditWorkflowStart({
+              correlation_id: cid,
+              source: 'plan-execution-trigger',
+              epic_id: null,
+              task_id: null,
+              repository: context.repo.owner + '/' + context.repo.repo,
+            });
+            core.setOutput('correlation_id', cid);
+
+      - name: Checkout plan branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Discover plan context
+        id: discover
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { readFrontmatterField } = require(path.join(process.cwd(), 'bin/sync-state/epic-resolver'));
+
+            const branchRef = context.payload.pull_request.head.ref;
+            const branchBody = branchRef.replace(/^plan\//, '');
+            const branchSlug = branchBody.includes('_') ? branchBody.slice(branchBody.indexOf('_') + 1) : branchBody;
+
+            function slugify(value) {
+              return String(value || '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+            }
+
+            function walk(dir, results = []) {
+              if (!fs.existsSync(dir)) return results;
+              for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '_templates') continue;
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                  results.push(full);
+                  walk(full, results);
+                }
+              }
+              return results;
+            }
+
+            const roots = ['agent-development/plans', 'fallback-sdd', 'repos'];
+            let found = null;
+
+            for (const root of roots) {
+              if (!fs.existsSync(root)) continue;
+              for (const dir of walk(root)) {
+                const manifest = path.join(dir, 'manifest.yaml');
+                if (!fs.existsSync(manifest)) continue;
+                const taskName = readFrontmatterField(manifest, 'task_name') || '';
+                const taskId = readFrontmatterField(manifest, 'task_id');
+                const epicId = readFrontmatterField(manifest, 'epic_id');
+                const targetRepo = readFrontmatterField(manifest, 'target_repo');
+                const dirSlug = path.basename(dir);
+                if (
+                  slugify(dirSlug).includes(slugify(branchSlug)) ||
+                  slugify(branchSlug).includes(slugify(dirSlug)) ||
+                  slugify(taskName).includes(slugify(branchSlug))
+                ) {
+                  found = { manifest, planDir: dir, taskId, epicId, targetRepo, taskName };
+                  break;
+                }
+              }
+              if (found) break;
+            }
+
+            if (!found) {
+              throw new Error(`Unable to resolve plan manifest for branch ${branchRef}`);
+            }
+
+            function resolveRepoFullName(repoKey) {
+              const config = fs.readFileSync('config/repos.yaml', 'utf8');
+              const repoSectionRegex = new RegExp(`^  ${repoKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\n([\\s\\S]*?)(?=^  [A-Za-z0-9_-]+:|^#|$)`, 'm');
+              const section = config.match(repoSectionRegex);
+              if (!section) return null;
+              const gitUrl = (section[1].match(/git_url:\\s*"([^"]+)"/m) || section[1].match(/git_url:\\s*([^\\s#]+)/m))?.[1];
+              if (!gitUrl) return null;
+              const ownerRepo = gitUrl.match(/github\\.com[:/](.+?)(?:\\.git)?$/);
+              return ownerRepo ? ownerRepo[1] : null;
+            }
+
+            const targetRepoFullName = resolveRepoFullName(found.targetRepo);
+            if (!targetRepoFullName) {
+              throw new Error(`Unable to resolve git URL for target repo ${found.targetRepo}`);
+            }
+
+            function readTeamsConfig() {
+              const config = fs.readFileSync('config/teams.yaml', 'utf8');
+              const branchTypesMatch = config.match(/branch_types:\s*\[(.*?)\]/);
+              const branchTypes = branchTypesMatch
+                ? branchTypesMatch[1].split(',').map(s => s.trim().replace(/['"]/g, ''))
+                : ['feat'];
+              return branchTypes[0] || 'feat';
+            }
+
+            function resolveSddMode(repoKey) {
+              const config = fs.readFileSync('config/repos.yaml', 'utf8');
+              const repoSectionRegex = new RegExp(`^  ${repoKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\n([\\s\\S]*?)(?=^  [A-Za-z0-9_-]+:|^#|$)`, 'm');
+              const section = config.match(repoSectionRegex);
+              if (!section) return { hasOwnSdd: false };
+              const hasOwnSdd = (section[1].match(/has_own_sdd:\s*true/m)) ? true : false;
+              return { hasOwnSdd };
+            }
+
+            const branchType = readTeamsConfig();
+            const sddMode = resolveSddMode(found.targetRepo);
+            const executionBranch = `${branchType}/${found.taskId}_${branchSlug}`;
+
+            core.setOutput('branch_type', branchType);
+            core.setOutput('has_own_sdd', String(sddMode.hasOwnSdd));
+
+            core.setOutput('branch_ref', branchRef);
+            core.setOutput('plan_dir', found.planDir);
+            core.setOutput('manifest_path', found.manifest);
+            core.setOutput('task_id', found.taskId);
+            core.setOutput('epic_id', found.epicId);
+            core.setOutput('target_repo_key', found.targetRepo);
+            core.setOutput('target_repo_full_name', targetRepoFullName);
+            core.setOutput('task_name', found.taskName);
+            core.setOutput('execution_branch', executionBranch);
+
+      - name: Mark task activated and delivery branched
+        env:
+          EPIC_ID: ${{ steps.discover.outputs.epic_id }}
+          TASK_ID: ${{ steps.discover.outputs.task_id }}
+          EXECUTION_BRANCH: ${{ steps.discover.outputs.execution_branch }}
+        run: |
+          node bin/sync-state.js update-task "$EPIC_ID" "$TASK_ID" activated
+          node bin/sync-state.js record-pr "$EPIC_ID" "$TASK_ID" --branch="$EXECUTION_BRANCH" --status=branched
+
+      - name: Run pre-dispatch artifact analysis
+        env:
+          EPIC_ID: ${{ steps.discover.outputs.epic_id }}
+        run: |
+          echo "Running cross-artifact analysis for epic $EPIC_ID..."
+          node bin/sync-state.js analyze "$EPIC_ID" || {
+            echo ""
+            echo "Artifact analysis found issues. Review the output above."
+            echo "The dispatch will proceed, but fix these issues before execution."
+          }
+
+      - name: Generate quality checklist
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const planDir = '${{ steps.discover.outputs.plan_dir }}';
+            const manifestPath = '${{ steps.discover.outputs.manifest_path }}';
+
+            if (!fs.existsSync(manifestPath)) {
+              console.log('Manifest not found. Skipping checklist generation.');
+              return;
+            }
+
+            const manifestText = fs.readFileSync(manifestPath, 'utf8');
+
+            const checklist = [];
+            checklist.push({ id: 'CHK-001', description: 'All plan stages have verified successfully', verified: false });
+            checklist.push({ id: 'CHK-002', description: 'Tests pass (bin/dev verify:full)', verified: false });
+            checklist.push({ id: 'CHK-003', description: 'No lint warnings remain (bin/dev lint)', verified: false });
+            checklist.push({ id: 'CHK-004', description: 'Architecture docs updated if this change affects system design', verified: false });
+            checklist.push({ id: 'CHK-005', description: 'Blast radius matches declared scope in manifest', verified: false });
+
+            const taskName = '${{ steps.discover.outputs.task_name }}';
+            if (taskName && taskName.toLowerCase().includes('api')) {
+              checklist.push({ id: 'CHK-006', description: 'API contract updated in contracts/ directory', verified: false });
+            }
+            if (taskName && taskName.toLowerCase().includes('ui')) {
+              checklist.push({ id: 'CHK-007', description: 'Manual testing completed in supported browsers', verified: false });
+            }
+
+            const checklistYaml = checklist.map(c =>
+              `      ${c.id}:\n        description: "${c.description}"\n        verified: false`
+            ).join('\n');
+
+            const checklistBlock = `  checklist:\n${checklistYaml}`;
+
+            const updated = manifestText.includes('checklist:')
+              ? manifestText
+              : manifestText.replace(/\n(?=\S)/, `\n${checklistBlock}\n`);
+
+            fs.writeFileSync(manifestPath, updated);
+            console.log('Checklist injected into manifest.');
+
+      - name: Dispatch task to target repo
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
+          script: |
+            const { generateIntegrityToken } = require('./bin/sync-state/audit');
+            const [owner, repo] = '${{ steps.discover.outputs.target_repo_full_name }}'.split('/');
+            const cid = '${{ steps.audit.outputs.correlation_id }}';
+
+            const payload = {
+              epic_id: '${{ steps.discover.outputs.epic_id }}',
+              task_id: '${{ steps.discover.outputs.task_id }}',
+              task_name: '${{ steps.discover.outputs.task_name }}',
+              hub_repo: context.repo.owner + '/' + context.repo.repo,
+              plan_branch: '${{ steps.discover.outputs.branch_ref }}',
+              plan_pr_number: context.payload.pull_request.number,
+              plan_dir: '${{ steps.discover.outputs.plan_dir }}',
+              manifest_path: '${{ steps.discover.outputs.manifest_path }}',
+              target_repo_key: '${{ steps.discover.outputs.target_repo_key }}',
+              target_repo_full_name: '${{ steps.discover.outputs.target_repo_full_name }}',
+              execution_branch: '${{ steps.discover.outputs.execution_branch }}',
+              branch_type: '${{ steps.discover.outputs.branch_type }}',
+              has_own_sdd: '${{ steps.discover.outputs.has_own_sdd }}',
+              correlation_id: cid,
+            };
+
+            payload.integrity_token = generateIntegrityToken(
+              process.env.HUB_INTEGRITY_SECRET || '',
+              payload
+            );
+
+            await github.rest.repos.createDispatchEvent({
+              owner,
+              repo,
+              event_type: 'task-assigned',
+              client_payload: payload,
+            });
+
+      - name: Commit plan tracking updates
+        run: |
+          if git diff --quiet; then
+            echo "No tracking changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add epics agent-development fallback-sdd
+          git commit -m "chore(plan): dispatch task ${{ steps.discover.outputs.task_id }}"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+
+      - name: Comment on plan PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: [
+                'Plan approved and dispatched.',
+                '',
+                `**Task:** ${{ steps.discover.outputs.task_id }} - ${{ steps.discover.outputs.task_name }}`,
+                `**Target repo:** ${{ steps.discover.outputs.target_repo_full_name }}`,
+                `**Execution branch:** ${{ steps.discover.outputs.execution_branch }}`,
+                `**Child repo dispatch:** sent`,
+                `**Correlation ID:** \`${{ steps.audit.outputs.correlation_id }}\``,
+              ].join('\n'),
+            });
+
+      - name: Audit workflow end
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { auditWorkflowEnd } = require('./bin/sync-state/audit');
+            auditWorkflowEnd('${{ steps.audit.outputs.correlation_id }}', {
+              source: 'plan-execution-trigger',
+              epic_id: '${{ steps.discover.outputs.epic_id }}',
+              task_id: '${{ steps.discover.outputs.task_id }}',
+              repository: context.repo.owner + '/' + context.repo.repo,
+              error: ${{ job.status == 'failure' }} ? 'workflow_failed' : null,
+            });

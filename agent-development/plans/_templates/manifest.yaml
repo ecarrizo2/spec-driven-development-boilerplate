@@ -8,10 +8,12 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 plan_metadata:
+  epic_id: null               # Parent epic ID (matches epics/active/<id>-*/)
   task_id: null               # Must match originating request number (e.g., 1, 2, 3)
   task_name: ""               # Must match request filename: short-descriptive-name
   status: draft               # draft | pending-approval | approved | in-progress | done | failed | paused
   complexity: null            # Fibonacci: 1 | 2 | 3 | 5 | 8 | 13 — inherited from request
+  target_repo: ""            # Which repo this task executes in (must match repos.yaml key)
   total_stages: 0
   current_stage: 0
   created: null               # YYYY-MM-DD

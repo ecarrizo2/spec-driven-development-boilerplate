@@ -1,0 +1,174 @@
+name: Target Status Events
+
+on:
+  repository_dispatch:
+    types: [pr-status-change, task-status-change]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: target-status-${{ github.event.client_payload.epic_id }}-${{ github.event.client_payload.task_id }}
+  cancel-in-progress: false
+
+jobs:
+  sync-status:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout hub default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Validate and apply status change
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { execFileSync } = require('child_process');
+            const fs = require('fs');
+            const path = require('path');
+            const { isValidTransition } = require(path.join(process.cwd(), 'bin/sync-state/status-validator'));
+            const { getTaskById, getDeliveryNodeById, checkEpicCompletion } = require(path.join(process.cwd(), 'bin/sync-state/epic-resolver'));
+
+            const payload = context.payload.client_payload || {};
+            const eventType = context.payload.action || 'pr-status-change';
+
+            const epicId = String(payload.epic_id || '');
+            const taskId = String(payload.task_id || '');
+            const newStatus = String(payload.status || '');
+            const layer = String(payload.layer || '');
+
+            if (!epicId || !taskId || !newStatus) {
+              throw new Error('Missing required fields: epic_id, task_id, or status.');
+            }
+
+            const task = getTaskById(process.cwd(), epicId, taskId);
+            const node = getDeliveryNodeById(process.cwd(), epicId, taskId);
+
+            let currentTaskStatus = task ? (task.status || 'draft') : null;
+            let currentNodeStatus = node ? (node.status || 'planned') : null;
+
+            console.log(`Status event: epic=${epicId} task=${taskId} layer=${layer || 'auto'} new=${newStatus}`);
+            console.log(`Current task status: ${currentTaskStatus || 'unknown'}`);
+            console.log(`Current delivery node status: ${currentNodeStatus || 'unknown'}`);
+
+            if (layer === 'delivery' && currentNodeStatus) {
+              const validation = isValidTransition('delivery', currentNodeStatus, newStatus);
+              if (!validation.valid) {
+                console.log(`Invalid delivery transition: ${validation.reason}. Skipping.`);
+              } else {
+                execFileSync('node', [
+                  'bin/sync-state.js', 'update-pr', epicId, taskId, newStatus,
+                  `--pr-url=${payload.pr_url || ''}`,
+                  `--pr-number=${String(payload.pr_number || '')}`,
+                  `--branch=${payload.branch || ''}`,
+                ], { stdio: 'inherit' });
+                console.log(`Delivery node ${taskId} → ${newStatus}`);
+              }
+            } else if (layer === 'task' && currentTaskStatus) {
+              const validation = isValidTransition('task', currentTaskStatus, newStatus);
+              if (!validation.valid) {
+                console.log(`Invalid task transition: ${validation.reason}. Skipping.`);
+              } else {
+                execFileSync('node', [
+                  'bin/sync-state.js', 'update-task', epicId, taskId, newStatus,
+                ], { stdio: 'inherit' });
+                console.log(`Task ${taskId} → ${newStatus}`);
+              }
+            } else {
+              if (currentNodeStatus && layer !== 'task') {
+                const deliveryStatuses = {
+                  'branched': 'branched',
+                  'draft-pr': 'draft-pr',
+                  'in-progress': 'in-progress',
+                  'ready-for-review': 'ready-for-review',
+                  'merged': 'merged',
+                };
+                const mapped = deliveryStatuses[newStatus] || newStatus;
+                execFileSync('node', [
+                  'bin/sync-state.js', 'update-pr', epicId, taskId, mapped,
+                  `--pr-url=${payload.pr_url || ''}`,
+                  `--pr-number=${String(payload.pr_number || '')}`,
+                  `--branch=${payload.branch || ''}`,
+                ], { stdio: 'inherit' });
+              }
+
+              const taskStatuses = {
+                'branched': 'in-progress',
+                'draft-pr': 'in-progress',
+                'in-progress': 'in-progress',
+                'ready-for-review': 'done',
+                'merged': 'done',
+              };
+              const taskMapped = taskStatuses[newStatus] || newStatus;
+              if (['in-progress', 'done', 'blocked'].includes(taskMapped)) {
+                execFileSync('node', [
+                  'bin/sync-state.js', 'update-task', epicId, taskId, taskMapped,
+                ], { stdio: 'inherit' });
+              }
+            }
+
+            const completion = checkEpicCompletion(process.cwd(), epicId);
+            if (completion.complete) {
+              console.log('All tasks complete. Epic is ready for archive.');
+              core.setOutput('epic_complete', 'true');
+            } else {
+              core.setOutput('epic_complete', 'false');
+              console.log('Epic not yet complete. Remaining:');
+              console.log(JSON.stringify(completion.incompleteTasks, null, 2));
+              console.log(JSON.stringify(completion.unmergedNodes, null, 2));
+            }
+
+      - name: Commit status updates
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add epics agent-development fallback-sdd
+          git commit -m "chore(sync): update status from target repo event"
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
+
+      - name: Trigger epic completion comment
+        if: steps.sync-status.outputs.epic_complete == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const payload = context.payload.client_payload || {};
+            const epicId = payload.epic_id || '';
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'epic',
+              state: 'open',
+              per_page: 20,
+            });
+
+            const epicIssue = issues.data.find(i => {
+              const titleMatch = i.title.match(new RegExp(epicId, 'i'));
+              return !!titleMatch;
+            });
+
+            if (epicIssue) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: epicIssue.number,
+                body: [
+                  'Epic is complete. All tasks are done and all PRs are merged.',
+                  '',
+                  'The epic can now be archived:',
+                  '```',
+                  `bin/dev wf:archive ${epicId}`,
+                  '```',
+                ].join('\n'),
+              });
+            }

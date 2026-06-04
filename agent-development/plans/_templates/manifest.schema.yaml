@@ -14,6 +14,10 @@ _schema_version: "1.0"
 
 plan_metadata:
   _required: true
+  epic_id:
+    type: integer
+    required: true
+    description: "Parent epic ID (matches epics/active/<id>-*/)"
   task_id:
     type: integer
     required: true
@@ -23,6 +27,10 @@ plan_metadata:
     required: true
     description: "Must match request filename (kebab-case)"
     pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+  target_repo:
+    type: string
+    required: true
+    description: "Which repo this task executes in (must match repos.yaml key)"
   status:
     type: enum
     required: true
