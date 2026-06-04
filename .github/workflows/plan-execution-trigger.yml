@@ -109,13 +109,21 @@ jobs:
 
             function resolveRepoFullName(repoKey) {
               const config = fs.readFileSync('config/repos.yaml', 'utf8');
-              const repoSectionRegex = new RegExp(`^  ${repoKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\n([\\s\\S]*?)(?=^  [A-Za-z0-9_-]+:|^#|$)`, 'm');
-              const section = config.match(repoSectionRegex);
-              if (!section) return null;
-              const gitUrl = (section[1].match(/git_url:\\s*"([^"]+)"/m) || section[1].match(/git_url:\\s*([^\\s#]+)/m))?.[1];
-              if (!gitUrl) return null;
-              const ownerRepo = gitUrl.match(/github\\.com[:/](.+?)(?:\\.git)?$/);
-              return ownerRepo ? ownerRepo[1] : null;
+              const lines = config.split('\n');
+              let inRepo = false;
+              for (const line of lines) {
+                if (line.trim() === repoKey + ':') { inRepo = true; continue; }
+                if (inRepo && /^\S/.test(line) && !line.startsWith('  ')) { break; }
+                if (inRepo) {
+                  const m = line.match(/git_url:\s*"([^"]+)"/);
+                  if (m) {
+                    const url = m[1];
+                    const match = url.match(/github\.com[/:](.+?)(?:\.git)?$/);
+                    return match ? match[1] : null;
+                  }
+                }
+              }
+              return null;
             }
 
             const targetRepoFullName = resolveRepoFullName(found.targetRepo);
