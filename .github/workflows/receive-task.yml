@@ -47,6 +47,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Verify integrity token
         uses: actions/github-script@v7
         with:
@@ -76,11 +81,6 @@ jobs:
               task_id: '${{ inputs.task_id }}',
               repository: context.repo.owner + '/' + context.repo.repo,
             });
-
-      - name: Checkout target repo
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Create execution branch
         env:
