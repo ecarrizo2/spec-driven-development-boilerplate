@@ -10,7 +10,9 @@ function parseManifestChecklist(manifestPath) {
   const lines = text.split('\n');
 
   const checklistStart = lines.findIndex(l => l.trim() === 'checklist:');
-  if (checklistStart === -1) return { items: [], total: 0, verified: 0 };
+  if (checklistStart === -1) {
+    return { items: [], total: 0, verified: 0, unchecked: [], all_verified: true, percent: 100, path: manifestPath };
+  }
 
   const items = [];
   let inChecklist = false;

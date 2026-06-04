@@ -7,22 +7,47 @@ const { isValidTransition } = require('./status-validator');
 function checkCircularDeps(tasks) {
   const taskIds = new Set(tasks.map(t => String(t.id)));
   const cycles = [];
+  const visited = new Set();
+  const inStack = new Set();
 
+  const adj = {};
   for (const task of tasks) {
-    const deps = task.depends_on || [];
-    if (!Array.isArray(deps)) continue;
-    for (const dep of deps) {
-      if (!taskIds.has(String(dep))) continue;
-      const reverseDeps = [];
-      for (const other of tasks) {
-        if (other.id === task.id) continue;
-        if (Array.isArray(other.depends_on) && other.depends_on.some(d => String(d) === String(task.id))) {
-          reverseDeps.push(other.id);
-          if (deps.some(d => String(d) === String(other.id))) {
-            cycles.push({ from: task.id, to: other.id });
-          }
+    const key = String(task.id);
+    const deps = task.depends_on;
+    if (!Array.isArray(deps)) {
+      adj[key] = [];
+      continue;
+    }
+    adj[key] = deps.map(d => String(d)).filter(d => taskIds.has(d) && d !== '' && d !== 'null');
+  }
+
+  function dfs(node, path) {
+    visited.add(node);
+    inStack.add(node);
+    path.push(node);
+
+    for (const neighbor of (adj[node] || [])) {
+      if (!visited.has(neighbor)) {
+        dfs(neighbor, path);
+      } else if (inStack.has(neighbor)) {
+        const cycleStart = path.indexOf(neighbor);
+        if (cycleStart !== -1) {
+          cycles.push({
+            cycle: [...path.slice(cycleStart), neighbor],
+            from: path[cycleStart],
+            to: path[path.length - 1],
+          });
         }
       }
+    }
+
+    path.pop();
+    inStack.delete(node);
+  }
+
+  for (const id of taskIds) {
+    if (!visited.has(id)) {
+      dfs(id, []);
     }
   }
 

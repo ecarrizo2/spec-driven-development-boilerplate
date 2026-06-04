@@ -116,7 +116,8 @@ function auditWorkflowStart(data = {}) {
     ...data,
     status: 'started',
   });
-  writeAuditEntry(entry);
+  const projectRoot = data.projectRoot || process.cwd();
+  writeAuditEntry(entry, projectRoot);
   return entry.correlation_id;
 }
 
@@ -126,7 +127,8 @@ function auditWorkflowEnd(correlationId, data = {}) {
     correlation_id: correlationId,
     status: data.error ? 'failed' : 'success',
   });
-  writeAuditEntry(entry);
+  const projectRoot = data.projectRoot || process.cwd();
+  writeAuditEntry(entry, projectRoot);
   return entry;
 }
 
@@ -136,7 +138,8 @@ function auditStep(correlationId, stepName, data = {}) {
     correlation_id: correlationId,
     status: data.error ? 'failed' : 'completed',
   });
-  writeAuditEntry(entry);
+  const projectRoot = data.projectRoot || process.cwd();
+  writeAuditEntry(entry, projectRoot);
   return entry;
 }
 
