@@ -1,0 +1,28 @@
+epic_id: 1
+last_updated: 2026-06-04
+
+nodes:
+  - id: 1
+    task_id: 1
+    repo: example-api
+    title: "Guardrails test"
+    branch: feat/PROJ-100_guardrails-test
+    base: main
+    depends_on: []
+    status: planned
+    pr_url: null
+    pr_number: null
+  - id: 2
+    task_id: 2
+    repo: example-api
+    title: "Dispatch test"
+    branch: feat/PROJ-101_dispatch-test
+    base: main
+    depends_on: [1]
+    status: planned
+    pr_url: null
+    pr_number: null
+
+merge_order:
+  - ids: [1]
+  - ids: [2]
