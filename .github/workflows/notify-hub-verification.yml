@@ -20,6 +20,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout hub repo (for SDD modules)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.hub_repo }}
+          token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
+          path: .sdd-hub
+
       - name: Checkout target repo
         uses: actions/checkout@v4
 
@@ -27,10 +34,10 @@ jobs:
         id: sdd-context
         run: |
           if [ -f .sdd/context.yaml ]; then
-            echo "epic_id=$(grep 'epic_id:' .sdd/context.yaml | sed 's/.*: *"//;s/"$//')" >> "$GITHUB_OUTPUT"
-            echo "task_id=$(grep 'task_id:' .sdd/context.yaml | sed 's/.*: *"//;s/"$//')" >> "$GITHUB_OUTPUT"
-            echo "hub_plan_branch=$(grep 'hub_plan_branch:' .sdd/context.yaml | sed 's/.*: *"//;s/"$//')" >> "$GITHUB_OUTPUT"
-            echo "hub_plan_pr=$(grep 'hub_plan_pr:' .sdd/context.yaml | sed 's/.*: *"//;s/"$//')" >> "$GITHUB_OUTPUT"
+            echo "epic_id=$(grep 'epic_id:' .sdd/context.yaml | sed 's/.*: *\"//;s/\"$//')" >> "$GITHUB_OUTPUT"
+            echo "task_id=$(grep 'task_id:' .sdd/context.yaml | sed 's/.*: *\"//;s/\"$//')" >> "$GITHUB_OUTPUT"
+            echo "hub_plan_branch=$(grep 'hub_plan_branch:' .sdd/context.yaml | sed 's/.*: *\"//;s/\"$//')" >> "$GITHUB_OUTPUT"
+            echo "hub_plan_pr=$(grep 'hub_plan_pr:' .sdd/context.yaml | sed 's/.*: *\"//;s/\"$//')" >> "$GITHUB_OUTPUT"
             echo "has_context=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_context=false" >> "$GITHUB_OUTPUT"
@@ -59,7 +66,7 @@ jobs:
         with:
           github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
           script: |
-            const { generateIntegrityToken, generateCorrelationId } = require('./bin/sync-state/audit');
+            const { generateIntegrityToken, generateCorrelationId } = require(`${process.env.GITHUB_WORKSPACE}/.sdd-hub/bin/sync-state/audit`);
             const hubRepo = '${{ inputs.hub_repo }}';
             const [hubOwner, hubName] = hubRepo.split('/');
 

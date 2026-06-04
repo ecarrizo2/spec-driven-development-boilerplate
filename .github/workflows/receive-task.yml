@@ -43,6 +43,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout hub repo (for SDD modules)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.hub_repo }}
+          token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
+          path: .sdd-hub
+
       - name: Checkout target repo
         uses: actions/checkout@v4
         with:
@@ -51,10 +58,10 @@ jobs:
       - name: Verify integrity token
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const { verifyIntegrityToken, auditWorkflowStart } = require('./bin/sync-state/audit');
-            const cid = '${{ inputs.correlation_id }}' || '${{ github.run_id }}';
+            const { verifyIntegrityToken, auditWorkflowStart } = require(`${process.env.GITHUB_WORKSPACE}/.sdd-hub/bin/sync-state/audit`);
+            const cid = '${{ github.run_id }}';
 
             const payload = {};
             for (const key of Object.keys(context.payload.client_payload || {})) {
@@ -96,7 +103,6 @@ jobs:
           HUB_PLAN_BRANCH: ${{ inputs.hub_plan_branch }}
           HUB_PLAN_PR: ${{ inputs.hub_plan_pr }}
           PLAN_DIR: ${{ inputs.plan_dir }}
-          TARGET_REPO_KEY: ${{ inputs.target_repo_key }}
         run: |
           mkdir -p .sdd
           cat > .sdd/context.yaml <<YAML
@@ -107,7 +113,6 @@ jobs:
           hub_plan_branch: "${HUB_PLAN_BRANCH}"
           hub_plan_pr: "${HUB_PLAN_PR}"
           plan_dir: "${PLAN_DIR}"
-          target_repo_key: "${TARGET_REPO_KEY}"
           created_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           YAML
 
@@ -128,7 +133,6 @@ jobs:
               `**Task Name:** ${{ inputs.task_name }}`,
               `**Hub plan PR:** ${{ inputs.hub_repo }}#${{ inputs.hub_plan_pr }}`,
               `**Hub plan branch:** ${{ inputs.hub_plan_branch }}`,
-              `**Target repo key:** ${{ inputs.target_repo_key }}`,
               '',
               '---',
               '',
