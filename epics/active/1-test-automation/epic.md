@@ -1,25 +1,28 @@
 ---
 id: 1
-title: "Test Automation Epic"
-status: active
+title: "E2E Automation Verification"
+status: pending
 complexity: 3
 created: 2026-06-04
-last_updated: 2026-06-04
-repos: [example-api]
+repos: [sdd-test-api, sdd-test-frontend]
 ---
 
-# Test Automation Epic
+# E2E Automation Verification
 
 ## Problem Statement
-Verify that all SDD automation workflows trigger correctly on GitHub.
+End-to-end test of the full SDD automation pipeline. When this epic is approved and merged, it should create Jira tickets for each task. When each plan is approved, it should dispatch to the target repo which creates a branch and draft PR.
 
 ## Requirements
-- Guardrails must fire on SDD branches and skip on non-SDD branches
-- Preflight must validate config and secrets
-- Validate must check YAML and frontmatter
-- AI verification must handle verify-pr events
+1. Epic approval triggers ticket creation in Jira
+2. Plan dispatch reaches the target repo and creates a branch + draft PR
+3. Target repo PRs notify the hub for AI verification
+4. Merged target repo PRs update the hub delivery manifest
+
+## Scope Boundaries
+- In scope: 2 tasks across 2 repos
+- Out of scope: Actual code changes
 
 ## Definition of Done
-- All guardrail check runs appear on SDD PRs
-- No guardrail noise on non-SDD PRs
-- Sync-state CLI commands work
+- Epic PR merged → Jira tickets created → epic status active
+- Plan 1 approved → sdd-test-api receives dispatch → branch created → draft PR opened
+- Plan 2 approved → sdd-test-frontend receives dispatch → branch created → draft PR opened
