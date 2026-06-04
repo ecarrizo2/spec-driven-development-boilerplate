@@ -1,3 +1,10 @@
+> **🎯 Preferred invocation:** In Zed or Claude Code, describe what you want —
+> the `sdd-quick-fix` skill activates automatically. In VS Code, use `/sdd-quick-fix`.
+>
+> **📋 Fallback:** Copy-paste the content below into any agent conversation.
+
+---
+
 # Prompt: Quick Fix
 
 > **Usage:** Copy this prompt into a new agent conversation. Replace `<CHANGE_DESCRIPTION>` with a plain-language description of the small change you need (e.g., "Extract the API base URL string used in 3 service files into a shared constant" or "Rename the `/books/list` endpoint to `/books`").
@@ -37,7 +44,7 @@ Examples of quick fixes:
 - Add a missing type annotation
 - Rename a variable or function for clarity
 
-**If at any point you discover the change is larger or more ambiguous than expected — STOP.** Do not proceed. Instead, explain why this doesn't qualify as a quick fix and recommend that the user create a full task request using `user-development/prompts/3-request-feature.md` and follow the standard plan pipeline.
+**If at any point you discover the change is larger or more ambiguous than expected — STOP.** Do not proceed. Instead, explain why this doesn’t qualify as a quick fix and recommend that the user create a full task request using `user-development/prompts/3-create-request.md` and follow the standard plan pipeline.
 
 ## Rules
 
@@ -49,7 +56,7 @@ Examples of quick fixes:
 
 ## Quick Fix Log Entry
 
-After completing the change, create a log file in `agent-development/done/quick-fixes/` named with today's date and a short description:
+After completing the change, create a log file in `agent-development/quick-fixes/` named with today's date and a short description:
 
 **Filename pattern:** `YYYYMMDD-short-description.md` (e.g., `20250115-extract-api-base-url-constant.md`)
 
@@ -97,3 +104,7 @@ After creating the log file and committing, provide a short summary:
 - 📝 Spec/doc updates made (if any)
 - ⚠️ Warnings or follow-up items (if any)
 - 🔖 Commit made (full commit message)
+
+## PR Description
+
+After the final report, generate a **ready-to-paste PR description** following `user-development/PR_TEMPLATE.md` (simplified — since quick fixes are single-commit, omit the Review Guide table and Epic & Plan Context section). Fill in Description, Related Issue (if a ticket exists), Types of changes, and Checklist. Present it in a fenced code block for easy copy-paste.

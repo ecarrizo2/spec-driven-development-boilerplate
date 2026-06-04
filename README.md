@@ -1,197 +1,168 @@
-# Spec-Driven Development (SDD) Boilerplate
+# Spec-Driven Development — Multirepo Hub
 
-A ready-to-adopt folder structure and workflow for building software projects with AI agents under human supervision. Clone this repo, replace the example content with your project's details, and start shipping features through a structured request → plan → approve → execute pipeline.
+A coordination hub for managing cross-repo epics using the Spec-Driven Development (SDD) methodology. This template is designed for microservices architectures where features frequently span multiple repositories.
 
-## What Is Spec-Driven Development?
+## What Is This?
 
-SDD is a development model where:
+This is a **scaffolding template**. You clone it, delete the `.git` folder, and start a new repo tailored to your specific domain (e.g., "Marketplace Hub", "Couples Zone Hub", "Data Platform Hub").
 
-1. **Humans define _what_ to build** — through task requests and by resolving open questions.
-2. **Agents figure out _how_ to build it** — through detailed, step-by-step implementation plans.
-3. **Humans approve before anything is built** — every plan goes through a review gate.
-4. **Agents execute approved plans** — mechanically following steps that were already vetted.
+Once scaffolded, the hub:
+- Coordinates planning across 2–10+ repositories
+- Tracks cross-repo epics, task graphs, and delivery manifests
+- Provides fallback SDD structures for repos that haven't adopted SDD internally
+- Manages git submodules for each target repo (agent-operated only)
+- Never gets deployed — it's a local development and planning tool
 
-No code is written without an approved plan. No plan is approved without human review. This creates a clear audit trail and prevents agents from making unsupervised architectural decisions.
+## Quick Start
 
-## Why Use This?
+### Step 1: Scaffold Your Hub
 
-- **Consistency:** Every feature follows the same pipeline, regardless of which agent or IDE you use.
-- **Control:** The open questions mechanism forces agents to surface ambiguities instead of guessing. You make the decisions; they do the work.
-- **Context:** The `agent-specs/` directory gives every agent conversation the same foundational knowledge about your project — no more re-explaining your architecture in every chat.
-- **History:** Completed plans and requests in `done/` serve as an audit trail of what was built, why, and how.
-- **Onboarding:** New contributors (human or AI) can read the specs and development guide to get up to speed without a walkthrough.
+```bash
+git clone <this-repo-url> my-domain-hub
+cd my-domain-hub
+rm -rf .git
+git init
+```
+
+### Step 2: Register Your Repos
+
+Edit `config/repos.yaml` — replace the examples with your actual repos:
+
+```yaml
+repositories:
+  my-api:
+    display_name: "My API"
+    git_url: "git@github.com:org/my-api.git"
+    # ... (see config/repos.yaml for full schema)
+```
+
+### Step 3: Add Submodules
+
+```bash
+bin/dev repo:add my-api git@github.com:org/my-api.git
+bin/dev repo:add my-frontend git@github.com:org/my-frontend.git
+```
+
+### Step 4: Bootstrap Agent Context
+
+Start a conversation with your AI coding agent and use Prompt 0 (`user-development/prompts/0-bootstrap-hub.md`). Provide:
+- Which repos are in scope
+- How they connect (API calls, queues, shared DBs)
+- Tech stack per repo
+- Team conventions (Jira project, branch naming)
+
+The agent will generate:
+- `architectural-schemas/system-overview.md`
+- `documentation/<repo>/overview.md` (for each repo)
+- `fallback-sdd/<repo>/agent-specs/` (for repos without their own SDD)
+- Updated `config/teams.yaml`
+
+### Step 5: Delete Example Content
+
+Remove the example entries from `config/repos.yaml` and any placeholder files.
+
+### Step 6: First Commit
+
+```bash
+git add .
+git commit -m "chore: scaffold multirepo hub for <domain-name>"
+```
+
+### Step 7: Start Planning
+
+Use Prompt 5 (`5-create-epic.md`) to define your first cross-repo epic.
 
 ## Repository Structure
 
 ```
-sdd-boilerplate/
-├── agent-development/                  ← Agent-facing pipeline
-│   ├── agent-specs/                    ← Project context (read by every agent)
-│   │   ├── agent-instructions.md       ← Coding standards (customize for your stack)
-│   │   ├── agent-workflow.md           ← Execution rules (system-level, rarely customized)
-│   │   ├── application-overview.md     ← What the app does (replace with yours)
-│   │   ├── architecture-breakdown.md   ← Folder structure, patterns, tech stack (replace)
-│   │   └── git-workflow.md             ← Branching, commits, versioning (customize)
-│   ├── pending/                        ← Task requests waiting to be planned
-│   │   └── _TEMPLATE-request.md
-│   ├── plans/                          ← All plan folders (status tracked in manifest.yaml)
-│   │   └── _templates/
-│   │       ├── manifest.yaml           ← Task state, stages, approval tracking
-│   │       ├── specification.md        ← Human-readable plan overview
-│   │       └── stage.md               ← Per-stage instruction template
-│   └── done/                           ← Completed work (archive)
-│       ├── plans/
-│       ├── requests/
-│       └── quick-fixes/
+hub/
+├── config/
+│   ├── repos.yaml                 ← Registry of all managed repos
+│   └── teams.yaml                 ← Jira, branching, team conventions
 │
-├── user-development/                   ← Human-facing development assets
-│   ├── DEVELOPMENT-GUIDE.md            ← Full workflow documentation
-│   ├── STATUS-REFERENCE.md             ← All status enums, transitions, and Mermaid diagrams
-│   └── prompts/                        ← Copy-paste prompts for agent conversations
-│       ├── 0-bootstrap-specs.md        ← "Bootstrap agent-specs/ for a new project"
-│       ├── 1-plan-task.md              ← "Plan this task request"
-│       ├── 2-execute-plan.md           ← "Execute this approved plan"
-│       ├── 3-create-request.md         ← "Interactive request discovery and creation"
-│       └── 4-quick-fix.md             ← "Make a small, obvious change and log it"
+├── epics/                         ← Cross-repo epic planning
+│   ├── _templates/                ← Templates for epic artifacts
+│   ├── active/                    ← Epics currently in progress
+│   └── done/                      ← Archived completed epics
 │
-└── README.md                           ← You are here
+├── repos/                         ← Git submodules (agent-managed only)
+│
+├── fallback-sdd/                  ← SDD for repos without their own
+│   └── <repo-name>/              ← Mirrors what sdd/ would look like in the repo
+│
+├── common-specs/                  ← Universal conventions
+│   ├── git-workflow.md
+│   ├── pr-conventions.md
+│   └── sdd-process.md
+│
+├── documentation/                 ← Per-repo architecture docs (fallback)
+├── contracts/                     ← Cross-service interface specs
+├── architectural-schemas/         ← System topology diagrams
+│
+├── bin/dev                        ← Hub CLI (coordination commands)
+├── user-development/              ← Prompts and human guides
+│
+├── AGENTS.md                      ← Rules for AI coding agents
+└── ADOPTION.md                    ← How to add repos to an existing hub
 ```
-
-## Quick Start
-
-Follow these steps to adopt SDD for a new project. The whole process takes about 10 minutes.
-
-### Step 1: Clone and Reset Git History
-
-```bash
-git clone <this-repo-url> my-new-project
-cd my-new-project
-rm -rf .git && git init
-```
-
-### Step 2: Delete Example Content
-
-The boilerplate ships with example content for a fictional NestJS project. Remove it so you start clean:
-
-```bash
-# Delete example pending requests (NestJS-specific — not relevant to your project)
-rm agent-development/pending/1-docker-infrastructure.md
-rm agent-development/pending/2-config-and-dotenv.md
-rm agent-development/pending/3-makefile-and-dev-commands.md
-```
-
-> **Keep the `done/` examples.** The completed plan in `agent-development/done/plans/0-project-bootstrapping/` and its matching request in `agent-development/done/requests/` serve as reference for the level of detail that works well.
-
-### Step 3: Bootstrap Your Agent Specs (Use Prompt 0)
-
-1. Open a new agent conversation in your IDE (Cursor, Windsurf, Copilot, Zed, etc.).
-2. Paste the contents of **`user-development/prompts/0-bootstrap-specs.md`**.
-3. Replace `<PROJECT_DESCRIPTION>` with a description of your project.
-4. If you have an existing codebase, point the agent at the source tree.
-5. The agent generates all five `agent-specs/` files in one shot.
-6. **Review the generated files.**
-
-| File | What It Contains | How Often You Customize |
-|---|---|---|
-| `agent-instructions.md` | Coding standards, dos/don'ts, naming, testing, error handling | **Frequently** — evolves with your project |
-| `agent-workflow.md` | Execution rules, blast radius, commit timing, spec/doc update rules | **Rarely** — system-level |
-| `application-overview.md` | What the app does, core workflows, UX/DX goals | **Occasionally** |
-| `architecture-breakdown.md` | Directory tree, design patterns, tech stack, module deps | **Per-task** |
-| `git-workflow.md` | Branching strategy, commit format, ticket ID pattern, versioning | **Once at setup** |
-
-### Step 4: Make Your First Commit
-
-```bash
-git add -A
-git commit -m "chore: initialize SDD boilerplate with project specs"
-```
-
-### Step 5: Create Your First Task Request
-
-Option A — write it yourself using `agent-development/pending/_TEMPLATE-request.md`.
-
-Option B — paste `user-development/prompts/3-create-request.md` into an agent conversation and describe what you want.
-
-### Step 6: Plan, Approve, Execute
-
-```mermaid
-graph LR
-    R[Request<br>human] --> P[Plan<br>agent]
-    P --> A[Approve<br>human]
-    A --> E[Execute<br>agent]
-    E --> D[Done<br>auto]
-```
-
-1. **Plan:** Paste `user-development/prompts/1-plan-task.md` into an agent conversation.
-2. **Approve:** Review `specification.md`. Resolve open questions. Set `approval.status: approved` in `manifest.yaml`.
-3. **Execute:** Paste `user-development/prompts/2-execute-plan.md` into a new conversation.
-
-For the full workflow documentation, read `user-development/DEVELOPMENT-GUIDE.md`.
 
 ## Key Concepts
 
-### Approval is Field-Based
+### The Fallback Pattern
 
-Plans stay in `agent-development/plans/` throughout their lifecycle. Approval is signaled by setting `approval.status: approved` in `manifest.yaml` — not by moving files between folders. This keeps git history clean and file references stable.
+For any SDD resource, the resolution is:
 
-### Plans Are Folders, Not Files
+```
+Does repos/<name>/sdd/ exist?
+├── YES → Use it (repo is self-sufficient)
+└── NO  → Use fallback-sdd/<name>/ (hub provides structure)
+```
 
-Each plan is a folder containing a `manifest.yaml` (authoritative state), a `specification.md` (human overview), and numbered stage files. This allows large tasks to be broken into focused, independently verifiable stages.
+### The Spec Resolution Cascade
 
-### The Open Questions Mechanism
+When an agent needs context:
 
-When a planning agent encounters ambiguity, it writes up the question in `specification.md` instead of guessing. The human resolves all questions before approving. See the [Development Guide](user-development/DEVELOPMENT-GUIDE.md#the-open-questions-mechanism).
+1. **Task plan** (specific instructions, blast radius)
+2. **Repo-level specs** (repo's own `sdd/` or hub's `fallback-sdd/`)
+3. **Hub documentation** (`documentation/`, `contracts/`, `architectural-schemas/`)
+4. **Common specs** (`common-specs/` — universal conventions)
 
-### Blast Radius Constraints
+### The Sync Rule
 
-Each stage file declares which files the agent may read and write. Anything not listed is out of scope. This prevents unscoped changes.
+After completing a task, the agent updates BOTH:
+- The local plan status (in the target repo)
+- The hub's task-graph and delivery manifest (coordination state)
 
-### Source Code Is the Source of Truth
+### One Epic Per Developer
 
-Agents read actual source code to understand the current state. Specs provide context and conventions, but if there's a conflict, the code wins.
+Multiple epics can be active simultaneously, but each developer focuses on one at a time.
 
-## Understand the Two Tracks
+## Commands
 
-| Track | When to Use | Prompt | Audit Trail |
-|---|---|---|---|
-| **Full Pipeline** | Features, refactors, anything with design decisions or 4+ files | `1-plan-task.md` → `2-execute-plan.md` | Request + plan folder in `done/` |
-| **Quick Fix** | Small, mechanically obvious changes (1–3 files, no ambiguity) | `4-quick-fix.md` | Log file in `done/quick-fixes/` |
+Hub-level commands (coordination):
 
-## Adapting to Your Stack
+| Command | Purpose |
+|---------|---------|
+| `bin/dev repo:list` | Show all repos with status |
+| `bin/dev repo:sync [name]` | Update submodules |
+| `bin/dev repo:add <name> <url>` | Register new repo |
+| `bin/dev repo:migrate <name>` | Move fallback-sdd into repo |
+| `bin/dev dispatch <epic> <task>` | Dispatch task to target repo |
+| `bin/dev status` | Cross-repo status dashboard |
+| `bin/dev wf:next` | Next actionable task |
+| `bin/dev resolve-spec <type> <repo>` | Find spec via cascade |
 
-This boilerplate is **language-agnostic** at the workflow level. The pipeline, templates, prompts, and directory structure work with any technology stack.
+Run `bin/dev help` for the full catalog.
 
-### What to Keep vs. Replace
+## SDD Methodology
 
-| File / Directory | Keep or Replace? | Notes |
-|---|---|---|
-| `user-development/` | **Keep as-is** | Prompts, guides, and templates are universal |
-| `agent-development/agent-specs/agent-workflow.md` | **Keep as-is** | System-level execution rules |
-| `agent-development/agent-specs/` (other 4 files) | **Replace** (via Prompt 0) | Must reflect YOUR project |
-| `agent-development/pending/*.md` (examples) | **Delete** | Stack-specific examples |
-| `agent-development/done/` | **Keep** (as reference) | Delete later once you have your own |
-| `agent-development/plans/_templates/` | **Keep as-is** | Universal plan structure |
+This hub builds on the Spec-Driven Development methodology:
+- **`main` branch** — Single-repo, plan-level workflow
+- **`with-epics` branch** — Adds epic planning layer
+- **`multirepo` branch** (this) — Extends to cross-repo coordination
 
-## FAQ
-
-**Q: Does this work with [Cursor / Windsurf / Copilot / Claude / Zed / etc.]?**
-A: Yes. The prompts are plain Markdown pasted into any agent conversation.
-
-**Q: Can I skip the planning step for small tasks?**
-A: Use the **quick fix track** for truly trivial changes. For anything with design decisions, use the full pipeline.
-
-**Q: What if I disagree with the agent's plan?**
-A: Modify the plan directly before approving. Set `approval.status: approved` only when satisfied.
-
-**Q: Do all plans need multiple stages?**
-A: No. Small tasks can have a single stage with spec/doc updates inline.
-
-**Q: What happens if execution is interrupted?**
-A: `manifest.yaml` tracks `current_stage`. The agent resumes from where it left off.
-
-**Q: Should I commit the `done/` files?**
-A: Yes. They serve as project history.
+For the full methodology reference, see `user-development/DEVELOPMENT-GUIDE.md`.
 
 ## License
 
-MIT — use this however you like.
+MIT

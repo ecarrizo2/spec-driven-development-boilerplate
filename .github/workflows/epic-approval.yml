@@ -1,0 +1,303 @@
+name: Epic Approval Sync
+
+on:
+  pull_request_review:
+    types: [submitted]
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: epic-approval-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.event.review.state == 'approved' && startsWith(github.event.pull_request.head.ref, 'epic/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout epic branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Discover epic context
+        id: discover
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { readFrontmatterField } = require(path.join(process.cwd(), 'bin/sync-state/epic-resolver'));
+
+            const branchRef = context.payload.pull_request.head.ref;
+            const branchBody = branchRef.replace(/^epic\//, '');
+            const branchTicket = branchBody.split('_')[0] || branchBody;
+            const branchSlug = branchBody.includes('_') ? branchBody.slice(branchBody.indexOf('_') + 1) : branchBody;
+
+            function slugify(value) {
+              return String(value || '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+            }
+
+            const epicRoots = ['epics/active', 'epics/done', 'epics'];
+            let found = null;
+
+            for (const root of epicRoots) {
+              if (!fs.existsSync(root)) continue;
+              for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+                if (!entry.isDirectory() || entry.name === '_templates') continue;
+                const epicDir = path.join(root, entry.name);
+                const epicFile = path.join(epicDir, 'epic.md');
+                if (!fs.existsSync(epicFile)) continue;
+                const epicId = readFrontmatterField(epicFile, 'id');
+                const epicTitle = readFrontmatterField(epicFile, 'title') || '';
+                const jiraEpic = readFrontmatterField(epicFile, 'jira_epic') || '';
+                const dirSlug = entry.name.includes('-') ? entry.name.slice(entry.name.indexOf('-') + 1) : entry.name;
+                const match =
+                  String(epicId) === String(branchTicket) ||
+                  String(jiraEpic) === String(branchTicket) ||
+                  slugify(epicTitle).includes(slugify(branchSlug)) ||
+                  slugify(dirSlug).includes(slugify(branchSlug)) ||
+                  slugify(branchSlug).includes(slugify(dirSlug));
+                if (match) {
+                  found = { epicDir, epicId, epicTitle, epicFile, taskGraphPath: path.join(epicDir, 'task-graph.md') };
+                  break;
+                }
+              }
+              if (found) break;
+            }
+
+            if (!found) {
+              throw new Error(`Unable to resolve epic directory for branch ${branchRef}`);
+            }
+
+            core.setOutput('epic_dir', found.epicDir);
+            core.setOutput('epic_id', found.epicId);
+            core.setOutput('epic_title', found.epicTitle);
+            core.setOutput('task_graph_path', found.taskGraphPath);
+            core.setOutput('branch_ref', branchRef);
+
+      - name: Create GitHub Issues and Jira tickets
+        id: tickets
+        uses: actions/github-script@v7
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_PROJECT_KEY: ${{ secrets.JIRA_PROJECT_KEY }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { readText, splitMarkdownFrontmatter } = require(path.join(process.cwd(), 'bin/sync-state/_common'));
+            const { readTaskGraphTasks } = require(path.join(process.cwd(), 'bin/sync-state/task-graph'));
+
+            const epicDir = '${{ steps.discover.outputs.epic_dir }}';
+            const epicId = '${{ steps.discover.outputs.epic_id }}';
+            const epicTitle = '${{ steps.discover.outputs.epic_title }}';
+            const taskGraphPath = '${{ steps.discover.outputs.task_graph_path }}';
+            const taskGraphText = readText(taskGraphPath);
+            const tasks = readTaskGraphTasks(taskGraphPath);
+
+            const teamsConfig = fs.readFileSync('config/teams.yaml', 'utf8');
+            const jiraProjectKey =
+              process.env.JIRA_PROJECT_KEY ||
+              (teamsConfig.match(/project_key:\s*"([^"]+)"/m) || teamsConfig.match(/project_key:\s*([A-Z0-9_-]+)/m))?.[1];
+            const jiraIssueType =
+              (teamsConfig.match(/task:\s*"([^"]+)"/m) || teamsConfig.match(/task:\s*([A-Za-z-]+)/m))?.[1] || 'Story';
+
+            if (!jiraProjectKey) {
+              throw new Error('Unable to resolve Jira project key.');
+            }
+
+            const mapping = [];
+
+            function adfText(text) {
+              return {
+                type: 'doc',
+                version: 1,
+                content: [
+                  {
+                    type: 'paragraph',
+                    content: [{ type: 'text', text: String(text) }],
+                  },
+                ],
+              };
+            }
+
+            function formatList(values) {
+              const filtered = (values || []).map((value) => String(value)).filter(Boolean);
+              return filtered.length ? filtered.join(', ') : 'None';
+            }
+
+            for (const task of tasks) {
+              const title = task.title || `Task ${task.id}`;
+              const summary = `[Epic ${epicId}] Task ${task.id}: ${title}`;
+
+              if (task.jira_ticket && task.gh_issue) {
+                console.log(`Task ${task.id}: tickets already exist (${task.jira_ticket}, #${task.gh_issue}). Skipping.`);
+                mapping.push({
+                  taskId: task.id,
+                  jiraTicket: task.jira_ticket,
+                  ghIssue: task.gh_issue,
+                  summary,
+                  alreadyExists: true,
+                });
+                continue;
+              }
+              const ghBody = [
+                `**Epic:** ${epicTitle || epicId}`,
+                `**Task ID:** ${task.id}`,
+                `**Target repo:** ${task.repo || 'unknown'}`,
+                `**Depends on:** ${formatList(task.depends_on)}`,
+                `**Plan file:** ${task.request_file || 'n/a'}`,
+              ].join('\n\n');
+
+              let ghIssueNumber = task.gh_issue || null;
+              if (!ghIssueNumber) {
+                const issue = await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: summary,
+                  body: ghBody,
+                });
+                ghIssueNumber = issue.data.number;
+              }
+
+              let jiraKey = task.jira_ticket || null;
+              if (!jiraKey) {
+                const response = await fetch(`${process.env.JIRA_BASE_URL.replace(/\/$/, '')}/rest/api/3/issue`, {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Basic ${Buffer.from(`${process.env.JIRA_USER_EMAIL}:${process.env.JIRA_API_TOKEN}`).toString('base64')}`,
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    fields: {
+                      project: { key: jiraProjectKey },
+                      summary,
+                      issuetype: { name: jiraIssueType },
+                      description: adfText([
+                        `Epic: ${epicTitle || epicId}`,
+                        `Task ID: ${task.id}`,
+                        `Target repo: ${task.repo || 'unknown'}`,
+                        `Depends on: ${formatList(task.depends_on)}`,
+                      ].join('\n')),
+                    },
+                  }),
+                });
+                if (!response.ok) {
+                  throw new Error(`Jira issue creation failed with status ${response.status}`);
+                }
+                const jira = await response.json();
+                jiraKey = jira.key;
+              }
+
+              mapping.push({
+                taskId: task.id,
+                jiraTicket: jiraKey,
+                ghIssue: ghIssueNumber,
+                summary,
+              });
+            }
+
+            core.setOutput('mapping', JSON.stringify(mapping));
+
+      - name: Record ticket IDs in task graph
+        env:
+          EPIC_ID: ${{ steps.discover.outputs.epic_id }}
+          TICKET_MAP: ${{ steps.tickets.outputs.mapping }}
+        run: |
+          node - <<'NODE'
+          const { execFileSync } = require('child_process');
+          const map = JSON.parse(process.env.TICKET_MAP);
+          for (const item of map) {
+            execFileSync('node', [
+              'bin/sync-state.js',
+              'record-ticket',
+              process.env.EPIC_ID,
+              String(item.taskId),
+              `--jira=${item.jiraTicket}`,
+              `--gh-issue=${item.ghIssue}`,
+            ], { stdio: 'inherit' });
+          }
+          NODE
+
+      - name: Commit tracking updates
+        env:
+          EPIC_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if git diff --quiet; then
+            echo "No tracking changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "${{ steps.discover.outputs.task_graph_path }}"
+          git commit -m "chore(epic): record ticket links for ${{ steps.discover.outputs.epic_title }}"
+          git push origin "HEAD:${EPIC_BRANCH}"
+
+      - name: Set epic status to active
+        uses: actions/github-script@v7
+        env:
+          EPIC_DIR: ${{ steps.discover.outputs.epic_dir }}
+          EPIC_ID: ${{ steps.discover.outputs.epic_id }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const epicFile = path.join(process.env.EPIC_DIR, 'epic.md');
+            if (fs.existsSync(epicFile)) {
+              const text = fs.readFileSync(epicFile, 'utf8');
+              const updated = text.replace(/^status:\s*.*$/m, 'status: active');
+              fs.writeFileSync(epicFile, updated);
+              console.log('Epic status set to active.');
+            }
+
+      - name: Transition Jira epic
+        if: env.JIRA_BASE_URL != '' && env.JIRA_API_TOKEN != ''
+        env:
+          EPIC_ID: ${{ steps.discover.outputs.epic_id }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          EPIC_DIR="${{ steps.discover.outputs.epic_dir }}"
+          JIRA_EPIC=$(node -e "
+            const { readFrontmatterField } = require('./bin/sync-state/epic-resolver');
+            const epicFile = require('path').join('$EPIC_DIR', 'epic.md');
+            process.stdout.write(readFrontmatterField(epicFile, 'jira_epic') || '');
+          ")
+          if [ -n "$JIRA_EPIC" ]; then
+            node -e "
+              const url = process.env.JIRA_BASE_URL.replace(/\/$/, '') + '/rest/api/3/issue/' + '$JIRA_EPIC' + '/transitions';
+              fetch(url, {
+                method: 'POST',
+                headers: {
+                  Authorization: 'Basic ' + Buffer.from(process.env.JIRA_USER_EMAIL + ':' + process.env.JIRA_API_TOKEN).toString('base64'),
+                  Accept: 'application/json',
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ transition: { id: '21' } }),
+              }).then(r => r.ok ? console.log('Jira epic transitioned.') : console.log('Jira transition status: ' + r.status));
+            " || echo "Jira transition attempted."
+          fi
+
+      - name: Merge epic PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge "${{ github.event.pull_request.number }}" --squash --delete-branch --yes

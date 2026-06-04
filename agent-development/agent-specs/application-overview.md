@@ -1,39 +1,39 @@
-# Application Overview
+# Application Overview — Hub Level
 
-<!-- 
-  ╔══════════════════════════════════════════════════════════════════════════════╗
-  ║  THIS IS AN EXAMPLE — Replace this entire file with your project's details ║
-  ╚══════════════════════════════════════════════════════════════════════════════╝
-  
-  This file should give any agent (or human) a quick understanding of what your
-  application does, who it's for, and what the key workflows look like.
-  
-  Keep it concise — think "elevator pitch + main user journeys." The architecture
-  details go in architecture-breakdown.md instead.
--->
+> **This file describes the hub itself, NOT any specific managed repo.**
+> For repo-specific context, see `fallback-sdd/<repo>/agent-specs/` or `repos/<repo>/sdd/agent-specs/`.
 
-## Purpose
+## What This Hub Does
 
-A NestJS-based REST API for managing a personal book collection. Users can add books, organize them into shelves, track reading progress, and receive recommendations based on their reading history. The API is consumed by a separate front-end SPA (out of scope for this project).
+This is a multirepo coordination hub for **[DOMAIN NAME]**. It manages cross-repo epics, task graphs, and delivery manifests for a microservices architecture.
 
-## Core Workflows
+## Managed Repositories
 
-1. **Book Management:** CRUD operations for books. Each book has a title, author, ISBN, genre, page count, and cover image URL. Books are validated against the OpenLibrary API on creation to auto-fill missing metadata.
+See `config/repos.yaml` for the full registry. Key services:
 
-2. **Shelf Organization:** Users create named shelves (e.g., "Currently Reading", "Sci-Fi Favorites") and assign books to one or more shelves. A book can live on multiple shelves simultaneously.
+| Repo | Role |
+|------|------|
+| _example-api_ | _Backend API_ |
+| _example-frontend_ | _User-facing frontend_ |
 
-3. **Reading Progress:** Users log reading sessions (start page, end page, date). The API calculates completion percentage and estimated time to finish based on average reading speed.
+## System Topology
 
-4. **Recommendations:** A background job analyzes the user's genre distribution and reading patterns, then queries OpenLibrary for similar titles. Recommendations are refreshed daily via a scheduled task.
+See `architectural-schemas/system-overview.md` for the full service diagram.
 
-## Key UX Goals
+## Key Workflows
 
-- **Fast responses:** All list endpoints must support cursor-based pagination. No endpoint should take longer than 200ms under normal load.
-- **Idempotent writes:** Book creation uses ISBN as a natural deduplication key. Repeated POST requests with the same ISBN return the existing record.
-- **Graceful degradation:** If the OpenLibrary API is unreachable, book creation still succeeds with user-provided data only — metadata enrichment is retried later via the job queue.
+1. **Epic Planning** — Define cross-repo features, break into task graphs
+2. **Task Dispatch** — Send refined requests to target repos for execution
+3. **Execution Tracking** — Monitor task/PR status across all repos via delivery manifests
+4. **Coordination** — Manage dependencies, merge ordering, and deployment sequencing
 
-## Out of Scope
+## Common Specs (Priority 4 — Hub Universal)
 
-- User authentication (handled by an external gateway — the API receives a verified `x-user-id` header)
-- Front-end application
-- Full-text search (planned for a future phase)
+These files in `common-specs/` apply to all repos managed by this hub and are resolved by the spec cascade at Priority 4:
+
+| File | Purpose |
+|---|---|
+| `common-specs/git-workflow.md` | Branching, commit conventions, versioning |
+| `common-specs/pr-conventions.md` | PR structure, review process, merge strategy |
+| `common-specs/sdd-process.md` | SDD pipeline rules, blast radius, plan structure |
+| `common-specs/writing-specs.md` | EARS notation, SDD failure mode taxonomy, acceptance criteria quality bar |

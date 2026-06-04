@@ -1,0 +1,167 @@
+name: PR Lifecycle Automation
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, converted_to_draft]
+    branches:
+      - main
+
+permissions:
+  pull-requests: write
+  checks: write
+
+jobs:
+  detect-sdd:
+    runs-on: ubuntu-latest
+    outputs:
+      is_sdd: ${{ steps.check.outputs.is_sdd }}
+    steps:
+      - id: check
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const branch = context.payload.pull_request.head.ref;
+            const body = context.payload.pull_request.body || '';
+
+            const isEpicOrPlan = branch.startsWith('epic/') || branch.startsWith('plan/');
+            const execPattern = /^(feat|fix|chore|hotfix|refactor|docs|ci)\/[A-Z][A-Z0-9]+-\d+_.+$/;
+            const hasSddMetadata = /Epic ID:|Task ID:|Hub plan PR:|Target repo PR:|\.sdd\/context\.yaml/.test(body);
+            const isSdd = isEpicOrPlan || (execPattern.test(branch) && hasSddMetadata);
+
+            core.setOutput('is_sdd', String(isSdd));
+
+            if (!isSdd) {
+              console.log('Non-SDD PR detected. Lifecycle automation skipped.');
+            }
+
+  label:
+    needs: detect-sdd
+    if: needs.detect-sdd.outputs.is_sdd == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Classify and label PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const branch = pr.head.ref;
+            const isDraft = pr.draft;
+            const title = pr.title || '';
+            const body = pr.body || '';
+
+            const labels = [];
+
+            if (branch.startsWith('epic/')) {
+              labels.push('epic');
+            } else if (branch.startsWith('plan/')) {
+              labels.push('plan');
+            } else if (/^(feat|fix|chore|hotfix|refactor|docs|ci)\//.test(branch)) {
+              const type = branch.split('/')[0];
+              labels.push('execution', type);
+            }
+
+            if (isDraft) {
+              labels.push('draft');
+            }
+
+            const hasCrossRef =
+              /(\*\*Target repo PR:\*\*|\*\*Hub plan PR:\*\*)/.test(body);
+            if (!hasCrossRef) {
+              const isPlanOrExec = branch.startsWith('plan/') || /^(feat|fix|chore|hotfix|refactor|docs|ci)\//.test(branch);
+              if (isPlanOrExec) {
+                labels.push('missing-cross-ref');
+              }
+            }
+
+            const conventionalCommit = /^(feat|fix|chore|hotfix|refactor|docs|ci)(\(.+\))?:\s/.test(title);
+            if (!conventionalCommit && title) {
+              labels.push('non-conventional-title');
+            }
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels,
+              });
+            }
+
+            core.setOutput('labels', labels.join(', '));
+
+      - name: Post lifecycle guidance comment
+        if: github.event.action == 'opened' || github.event.action == 'ready_for_review'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const branch = pr.head.ref;
+            const isDraft = pr.draft;
+            const body = pr.body || '';
+
+            const messages = [];
+
+            if (isDraft && branch.startsWith('plan/')) {
+              messages.push('This plan PR is in draft. It will become ready for review once the plan manifest is approved and execution begins.');
+            }
+
+            if (branch.startsWith('plan/')) {
+              const hasTargetPr = /\*\*Target repo PR:\*\*/.test(body);
+              if (!hasTargetPr) {
+                messages.push('**Missing cross-reference:** Add `**Target repo PR:** <org>/<repo>#<number>` to the PR description when the execution PR is created.');
+              }
+            }
+
+            if (/^(feat|fix|chore|hotfix|refactor|docs|ci)\//.test(branch)) {
+              const hasHubPr = /\*\*Hub plan PR:\*\*/.test(body);
+              if (!hasHubPr) {
+                messages.push('**Missing cross-reference:** Add `**Hub plan PR:** <org>/<hub-repo>#<number>` to the PR description to link back to the hub plan.');
+              }
+            }
+
+            if (messages.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: messages.join('\n\n'),
+              });
+            }
+
+  auto-ready:
+    needs: detect-sdd
+    if: needs.detect-sdd.outputs.is_sdd == 'true' && github.event.action == 'ready_for_review' && startsWith(github.event.pull_request.head.ref, 'plan/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Mark plan PR ready for review
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+
+            const hasTargetPr = /\*\*Target repo PR:\*\*/.test(body);
+            const hasManifestDone = body.includes('status: done') || body.includes('manifest.yaml');
+
+            if (hasTargetPr) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: [
+                  'Plan PR is ready for review.',
+                  '',
+                  '**Checklist:**',
+                  `- [x] Target repo PR linked: ${body.match(/\*\*Target repo PR:\*\*\s*([^\n]+)/)?.[1] || 'found'}`,
+                  '- [ ] Plan manifest reviewed',
+                  '- [ ] Verification gate passed',
+                  '- [ ] Ready to merge',
+                ].join('\n'),
+              });
+            }

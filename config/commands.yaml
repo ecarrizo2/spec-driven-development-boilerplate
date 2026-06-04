@@ -1,0 +1,40 @@
+# sdd/config/commands.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# Maps bin/dev commands to project-specific implementations.
+# This file is the key portability mechanism — edit it for your project.
+# ─────────────────────────────────────────────────────────────────────────────
+
+package_manager: npm  # npm | pnpm | yarn | bun
+
+commands:
+  build: "npm run build"
+  lint: "npm run lint"
+  lint_fix: "npm run lint -- --fix"
+  typecheck: "npm run typecheck"
+  test: "npm test"
+  test_cov: "npm run test:cov"
+
+  # Optional project-specific commands (uncomment and customize if needed)
+  # prisma_gen: "npx prisma generate"
+  # prisma_migrate: "npx prisma migrate dev --name"
+  # format: "npm run format"
+
+# Verification scoping rules
+# Maps file patterns to which commands should run when those files change.
+# Used by `bin/dev verify` to run only what's needed.
+verify_rules:
+  markdown_only:
+    pattern: "*.md"
+    commands: []  # No verification needed for docs-only changes
+  test_files:
+    pattern: "*.spec.ts,*.test.ts,*.spec.js,*.test.js"
+    commands: [test]
+  # prisma_schema:
+  #   pattern: "prisma/schema.prisma"
+  #   commands: [prisma_gen, typecheck]
+  source_code:
+    pattern: "*.ts,*.tsx,*.js,*.jsx"
+    commands: [lint, typecheck, test]
+  config_files:
+    pattern: "*.json,*.yaml,*.yml"
+    commands: [typecheck]

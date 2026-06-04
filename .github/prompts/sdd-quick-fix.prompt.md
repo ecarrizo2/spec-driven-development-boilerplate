@@ -1,0 +1,1 @@
+../../.agents/skills/sdd-quick-fix/SKILL.md

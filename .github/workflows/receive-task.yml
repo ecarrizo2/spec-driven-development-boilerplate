@@ -1,0 +1,186 @@
+name: Receive SDD Task
+
+on:
+  workflow_call:
+    inputs:
+      epic_id:
+        required: true
+        type: string
+      task_id:
+        required: true
+        type: string
+      task_name:
+        required: true
+        type: string
+      hub_repo:
+        required: true
+        type: string
+      hub_plan_branch:
+        required: true
+        type: string
+      hub_plan_pr:
+        required: true
+        type: string
+      execution_branch:
+        required: true
+        type: string
+      plan_dir:
+        required: false
+        type: string
+        default: ''
+      target_repo_key:
+        required: false
+        type: string
+        default: ''
+    secrets:
+      HUB_CROSS_REPO_TOKEN:
+        required: true
+      HUB_INTEGRITY_SECRET:
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  receive:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Verify integrity token
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
+          script: |
+            const { verifyIntegrityToken, auditWorkflowStart } = require('./bin/sync-state/audit');
+            const cid = '${{ inputs.correlation_id }}' || '${{ github.run_id }}';
+
+            const payload = {};
+            for (const key of Object.keys(context.payload.client_payload || {})) {
+              if (key !== 'integrity_token') {
+                payload[key] = context.payload.client_payload[key];
+              }
+            }
+
+            const token = context.payload.client_payload?.integrity_token || '';
+            const secret = process.env.HUB_INTEGRITY_SECRET || '';
+
+            if (secret && token && !verifyIntegrityToken(secret, token, payload)) {
+              console.warn('Integrity token verification failed. Event may not be from the expected hub.');
+            }
+
+            auditWorkflowStart({
+              correlation_id: cid,
+              source: 'receive-task',
+              epic_id: '${{ inputs.epic_id }}',
+              task_id: '${{ inputs.task_id }}',
+              repository: context.repo.owner + '/' + context.repo.repo,
+            });
+
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create execution branch
+        env:
+          EXECUTION_BRANCH: ${{ inputs.execution_branch }}
+          BASE_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${EXECUTION_BRANCH}" "origin/${BASE_BRANCH}"
+
+      - name: Create SDD context file
+        env:
+          EPIC_ID: ${{ inputs.epic_id }}
+          TASK_ID: ${{ inputs.task_id }}
+          TASK_NAME: ${{ inputs.task_name }}
+          HUB_REPO: ${{ inputs.hub_repo }}
+          HUB_PLAN_BRANCH: ${{ inputs.hub_plan_branch }}
+          HUB_PLAN_PR: ${{ inputs.hub_plan_pr }}
+          PLAN_DIR: ${{ inputs.plan_dir }}
+          TARGET_REPO_KEY: ${{ inputs.target_repo_key }}
+        run: |
+          mkdir -p .sdd
+          cat > .sdd/context.yaml <<YAML
+          epic_id: "${EPIC_ID}"
+          task_id: "${TASK_ID}"
+          task_name: "${TASK_NAME}"
+          hub_repo: "${HUB_REPO}"
+          hub_plan_branch: "${HUB_PLAN_BRANCH}"
+          hub_plan_pr: "${HUB_PLAN_PR}"
+          plan_dir: "${PLAN_DIR}"
+          target_repo_key: "${TARGET_REPO_KEY}"
+          created_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          YAML
+
+          git add .sdd/context.yaml
+          git commit -m "chore(sdd): initialize task ${TASK_ID} context"
+          git push origin "${EXECUTION_BRANCH}"
+
+      - name: Open draft PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prBody = [
+              '## SDD Task Context',
+              '',
+              `**Epic ID:** ${{ inputs.epic_id }}`,
+              `**Task ID:** ${{ inputs.task_id }}`,
+              `**Task Name:** ${{ inputs.task_name }}`,
+              `**Hub plan PR:** ${{ inputs.hub_repo }}#${{ inputs.hub_plan_pr }}`,
+              `**Hub plan branch:** ${{ inputs.hub_plan_branch }}`,
+              `**Target repo key:** ${{ inputs.target_repo_key }}`,
+              '',
+              '---',
+              '',
+              'Context file: `.sdd/context.yaml`',
+              '',
+              'This PR was auto-created by the SDD hub automation.',
+            ].join('\n');
+
+            const pr = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `feat(sdd): [${{ inputs.task_id }}] ${{ inputs.task_name }}`,
+              head: '${{ inputs.execution_branch }}',
+              base: context.payload.repository?.default_branch || 'main',
+              body: prBody,
+              draft: true,
+            });
+
+            core.setOutput('pr_number', String(pr.data.number));
+            core.setOutput('pr_url', pr.data.html_url);
+
+      - name: Notify hub of PR creation
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
+          script: |
+            const hubRepo = '${{ inputs.hub_repo }}';
+            const [hubOwner, hubName] = hubRepo.split('/');
+
+            if (!hubOwner || !hubName) {
+              console.log('Cannot parse hub repo from: ' + hubRepo);
+              return;
+            }
+
+            await github.rest.repos.createDispatchEvent({
+              owner: hubOwner,
+              repo: hubName,
+              event_type: 'pr-status-change',
+              client_payload: {
+                epic_id: '${{ inputs.epic_id }}',
+                task_id: '${{ inputs.task_id }}',
+                status: 'draft-pr',
+                layer: 'delivery',
+                pr_url: '${{ steps.open-pr.outputs.pr_url }}',
+                pr_number: '${{ steps.open-pr.outputs.pr_number }}',
+                branch: '${{ inputs.execution_branch }}',
+                repository: context.repo.owner + '/' + context.repo.repo,
+              },
+            });
+
+            console.log('Hub notification dispatched.');

@@ -1,6 +1,15 @@
+> **🎯 Preferred invocation:** In Zed or Claude Code, describe what you want —
+> the `sdd-create-request` skill activates automatically. In VS Code, use `/sdd-create-request`.
+>
+> **📋 Fallback:** Copy-paste the content below into any agent conversation.
+
+---
+
 # Prompt: Create a Request (Interactive Discovery)
 
 > **Usage:** Copy this prompt into a new agent conversation. Provide a description of the feature or change you want. The agent will guide you through a technical discovery session before writing the request document.
+>
+> **Note:** If this request is part of an existing epic, use **Prompt 7 (`refine-epic-request.md`)** instead — it has the epic context and produces the request in the right location.
 
 ---
 
@@ -22,7 +31,7 @@ You are a senior software engineer scoping a task for implementation. Your job i
 
 - **Understand what I want** — restate it, ask clarifying questions
 - **Investigate the codebase** — find the relevant code, understand current patterns and constraints
-- **Surface challenges** — things that are harder than they sound, edge cases, migration needs
+- **Surface challenges** — things that are harder than they sound, edge cases, SSR concerns, migration needs
 - **Help me make decisions** — when there are multiple valid approaches, present tradeoffs
 - **Define the scope precisely** — what's in, what's out, what's deferred
 - **Estimate complexity** — use Fibonacci scale (1, 2, 3, 5, 8, 13)
@@ -36,9 +45,13 @@ By the time you write the request, it should be so well-defined that the plannin
 Before your first response, silently read:
 
 1. **Agent specs** — all files in `agent-development/agent-specs/`
-2. **Request template** — `agent-development/pending/_TEMPLATE-request.md` for the output format
-3. **Relevant source code** — identify and read the key files/modules that would be affected
-4. **Existing requests** — list `agent-development/pending/` and `agent-development/done/requests/` to understand what already exists and avoid duplication
+2. **Team config** — `config/teams.yaml` for project conventions
+3. **Status reference** — `user-development/STATUS-REFERENCE.md` for valid status values
+4. **Request template** — `agent-development/requests/_TEMPLATE-request.md` for the output format (note: uses YAML frontmatter)
+5. **Architecture docs** — read the relevant files `agent-development/agent-specs/architecture-breakdown.md` for project structure and patterns.
+6. **Relevant source code** — identify and read the key files/modules that would be affected. Read thoroughly.
+7. **Existing requests** — list `agent-development/requests/` to understand what already exists and avoid duplication.
+8. **Writing specs** — `common-specs/writing-specs.md` for EARS notation and acceptance criteria quality bar, used when writing the Acceptance Criteria section of the request.
 
 ---
 
@@ -62,17 +75,19 @@ Ask questions organized by relevance. Present 3-5 at a time max. Focus on **deci
 |---|---|
 | **Scope** | Is this one request or should it be multiple? What's explicitly excluded? |
 | **Pattern** | Which existing pattern should this follow? Are there tradeoffs? |
-| **Data flow** | Where does the data come from? What's the data lifecycle? |
+| **Data flow** | Where does the data come from? Atom, Redux, API? SSR or client-only? |
 | **Migration** | Is this greenfield or does it modify existing code? What's the migration story? |
 | **Edge cases** | What happens when data is missing, malformed, or empty? |
 | **Testing** | What needs tests? What's the testing strategy for this? |
 | **Dependencies** | Does this depend on other work being done first? Does other work depend on this? |
+| **Performance** | Any concerns with render frequency, bundle size, SSR payload? |
+| **API surface** | Does this change observable API behavior? (determines `api_checkpoint` flag) |
 
 **Guidelines:**
 - Don't ask what you can answer by reading code — do the research first
-- Frame questions with context: "I see X works like [this] — should the new code follow the same pattern?"
-- If something is harder than it sounds, say so
-- Propose answers when you have a recommendation
+- Frame questions with context: "I see X works like [this] — should the new code follow the same pattern or deviate? Here's why you might want to deviate: ..."
+- If something is harder than it sounds, say so: "The brief makes this sound like a 1-file change, but it actually touches 5 files because of X"
+- Propose answers when you have a recommendation: "I'd suggest X because Y — thoughts?"
 
 ### Phase 3: Scope Confirmation
 
@@ -84,6 +99,7 @@ Before writing, summarize:
 4. **Key decisions made** in our conversation
 5. **Dependencies** (if any)
 6. **Complexity estimate** (Fibonacci: 1-13)
+7. **API checkpoint needed?** (true/false — does it change endpoints or response shapes?)
 
 Ask: "Does this scope look right? Should I write the request?"
 
@@ -91,25 +107,29 @@ Ask: "Does this scope look right? Should I write the request?"
 
 When I explicitly confirm:
 
-1. **Determine the task number** — find the highest-numbered file across `agent-development/pending/` and `agent-development/done/requests/`. Use the next number.
-2. **Write the request** to `agent-development/pending/N-short-name.md` following `agent-development/pending/_TEMPLATE-request.md`.
+1. **Determine the task number** — find the highest-numbered file in `agent-development/requests/`. Use the next number.
+2. **Write the request** to `agent-development/requests/N-short-name.md` following `agent-development/requests/_TEMPLATE-request.md`.
 3. **Fill the YAML frontmatter completely:**
    - `id:` — the task number
    - `title:` — descriptive title
    - `status: activated` — standalone requests enter the pipeline immediately
    - `complexity:` — the Fibonacci estimate from Phase 3
+   - `jira_ticket: null` — unless ticket already exists
+   - `epic: "standalone"` — this is not part of an epic
    - `depends_on: []` — or list task IDs if dependencies exist
    - `created:` — today's date
    - `last_updated:` — today's date
+   - `api_checkpoint:` — true/false based on Phase 3 assessment
 4. **Include all body sections:** Goal, Context, Requirements (R1, R2...), Implementation Details, Edge Cases, Deliverables, Agent Checklist.
-5. **Embed decisions** from our conversation into Implementation Details and Edge Cases.
+5. **Embed decisions** from our conversation into Implementation Details and Edge Cases — this preserves them for the planning agent.
 
 ---
 
-## Scope Check
+## Scope Check: Epic vs. Standalone
 
 If during our conversation it becomes clear that this feature is too large for a single request — or that it's really a multi-task initiative — **tell me.** Suggest:
 
+- "This feels like it should be an epic (multiple tasks with dependencies). Want to use Prompt 5 instead?"
 - "I'd split this into N requests: [brief description of each]. Want me to write just the first one?"
 
 A single request should be completable in one agent session (~500 lines of changes, ~5 files max). If it's bigger, it likely needs decomposition.

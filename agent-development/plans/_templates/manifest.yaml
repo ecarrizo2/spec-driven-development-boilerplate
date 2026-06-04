@@ -4,18 +4,21 @@
 # Authoritative record of task state and execution progress.
 # Agents update this file after each stage. Humans update the approval field.
 #
-# Status values reference: user-development/STATUS-REFERENCE.md
+# Status values reference: sdd/user-development/STATUS-REFERENCE.md
 # ─────────────────────────────────────────────────────────────────────────────
 
 plan_metadata:
+  epic_id: null               # Parent epic ID (matches epics/active/<id>-*/)
   task_id: null               # Must match originating request number (e.g., 1, 2, 3)
   task_name: ""               # Must match request filename: short-descriptive-name
   status: draft               # draft | pending-approval | approved | in-progress | done | failed | paused
   complexity: null            # Fibonacci: 1 | 2 | 3 | 5 | 8 | 13 — inherited from request
+  target_repo: ""            # Which repo this task executes in (must match repos.yaml key)
   total_stages: 0
   current_stage: 0
   created: null               # YYYY-MM-DD
   last_updated: null          # YYYY-MM-DD
+  api_checkpoint: false       # Inherited from request; individual stages may override
 
   # Approval tracking (replaces folder move from plans/ → queued/)
   # A plan is ready for execution when approval.status == "approved"
@@ -31,7 +34,18 @@ plan_metadata:
 dependencies:
   required_tasks: []          # Task IDs that must be 'done' before this plan can execute
   packages: []                # New dependencies to install (e.g., ["zod", "@nestjs/config"])
-  affected_modules: []        # Project modules this plan touches
+  affected_modules: []        # Project modules this plan touches (e.g., ["vendor", "google-places"])
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Delivery (for standalone tasks not part of an epic)
+# ─────────────────────────────────────────────────────────────────────────────
+# For epic tasks, delivery info lives in the epic's delivery.yaml.
+# For standalone tasks, use this section to track the single PR.
+delivery:
+  branch: null                # e.g., feat/PROJ-123-add-user-notifications
+  pr_url: null                # e.g., https://github.com/org/repo/pull/123
+  pr_number: null
+  pr_status: null             # planned | branched | draft-pr | in-progress | ready-for-review | merged
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stages
@@ -43,6 +57,7 @@ stages:
     instruction_file: ""      # e.g., "1-stage-name.md"
     status: todo              # todo | in-progress | done | skipped | failed
     complexity: null          # Fibonacci, per-stage
+    api_checkpoint: false     # true if this stage changes observable API behavior
     context_files: []         # Files the agent must read before starting
     output_files: []          # Files the agent will create or modify
     verification_commands: [] # Commands to run after stage completion
@@ -62,13 +77,14 @@ stages:
 
   # - stage_id: __PENULTIMATE__
   #   name: "Spec Updates"
-  #   description: "Update agent-development/agent-specs/ files to reflect changes."
+  #   description: "Update sdd/agent-development/agent-specs/ files to reflect changes."
   #   instruction_file: "N-1-spec-updates.md"
   #   status: todo
   #   complexity: 1
+  #   api_checkpoint: false
   #   context_files:
-  #     - agent-development/agent-specs/architecture-breakdown.md
-  #     - agent-development/agent-specs/agent-instructions.md
+  #     - sdd/agent-development/agent-specs/architecture-breakdown.md
+  #     - sdd/agent-development/agent-specs/agent-instructions.md
   #   output_files: []
   #   verification_commands: []
   #   rollback_plan: "Revert spec files via git checkout."
@@ -79,6 +95,7 @@ stages:
   #   instruction_file: "N-documentation-updates.md"
   #   status: todo
   #   complexity: 1
+  #   api_checkpoint: false
   #   context_files:
   #     - README.md
   #   output_files: []

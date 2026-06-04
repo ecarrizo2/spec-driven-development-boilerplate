@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# commit-msg hook — Validates conventional commit format
+# ─────────────────────────────────────────────────────────────────────────────
+# Validates that commit messages follow conventional commit format.
+# Checks for ticket ID if the branch has one.
+# Skips merge commits and fixup/squash commits.
+# ─────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+commit_msg_file="$1"
+commit_msg=$(head -1 "${commit_msg_file}")
+
+# Skip merge commits
+if echo "${commit_msg}" | grep -qE "^Merge "; then
+  exit 0
+fi
+
+# Skip fixup/squash commits
+if echo "${commit_msg}" | grep -qE "^(fixup|squash)! "; then
+  exit 0
+fi
+
+# Validate conventional commit format
+# Pattern: type(optional-scope): description
+# Or:      type(optional-scope)!: description (breaking change)
+valid_pattern='^(feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert)(\([a-zA-Z0-9_-]+\))?(!)?: .+'
+if ! echo "${commit_msg}" | grep -qE "${valid_pattern}"; then
+  echo ""
+  echo "❌ Invalid commit message format!"
+  echo ""
+  echo "   Your message: ${commit_msg}"
+  echo ""
+  echo "   Expected format: type(scope): description"
+  echo "   Examples:"
+  echo "     feat(vendor): GPMP-123 add rating aggregation"
+  echo "     fix(search): correct pagination offset"
+  echo "     chore: update dependencies"
+  echo ""
+  echo "   Valid types: feat, fix, chore, docs, style, refactor, perf, test, build, ci, revert"
+  echo ""
+  exit 1
+fi
+
+# Check for ticket ID if branch has one
+current_branch=$(git branch --show-current 2>/dev/null || echo "")
+if [[ -n "${current_branch}" ]]; then
+  # Try to find bin/dev for config reading
+  REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+  ticket_pattern='[A-Z][A-Z0-9]+-[0-9]+'
+
+  # Check if teams.yaml has a custom pattern
+  teams_config="${REPO_ROOT}/sdd/config/teams.yaml"
+  if [[ -f "${teams_config}" ]]; then
+    custom_pattern=$(grep "ticket_id_pattern:" "${teams_config}" 2>/dev/null | sed 's/^.*ticket_id_pattern:[[:space:]]*//' | sed 's/^["'\'']//' | sed 's/["'\''\\]*$//')
+    if [[ -n "${custom_pattern}" ]]; then
+      ticket_pattern="${custom_pattern}"
+    fi
+  fi
+
+  # Extract ticket from branch
+  branch_ticket=$(echo "${current_branch}" | grep -oE "${ticket_pattern}" | head -1 || true)
+
+  if [[ -n "${branch_ticket}" ]]; then
+    # Branch has a ticket — warn if commit doesn't include it
+    if ! echo "${commit_msg}" | grep -q "${branch_ticket}"; then
+      echo ""
+      echo "⚠️  Warning: Branch has ticket ${branch_ticket} but commit message doesn't include it"
+      echo "   Consider: type(scope): ${branch_ticket} your description"
+      echo ""
+      # Warning only, don't block
+    fi
+  fi
+fi
+
+exit 0
