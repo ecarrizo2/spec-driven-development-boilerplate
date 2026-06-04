@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -47,9 +49,16 @@ jobs:
               return fileList;
             }
 
-            const changedFiles = execFileSync('git', [
-              'diff', '--name-only', `origin/${process.env.GITHUB_BASE_REF || 'main'}`, 'HEAD',
-            ], { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+            const changedFiles = [];
+            const prFiles = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              per_page: 100,
+            });
+            for (const file of prFiles) {
+              changedFiles.push(file.filename);
+            }
 
             console.log(`Changed files: ${changedFiles.length}`);
 
