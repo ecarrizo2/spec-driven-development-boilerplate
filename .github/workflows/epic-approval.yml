@@ -166,13 +166,22 @@ jobs:
 
               let ghIssueNumber = task.gh_issue || null;
               if (!ghIssueNumber) {
-                const issue = await github.rest.issues.create({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  title: summary,
-                  body: ghBody,
-                });
-                ghIssueNumber = issue.data.number;
+                try {
+                  const issue = await github.rest.issues.create({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    title: summary,
+                    body: ghBody,
+                  });
+                  ghIssueNumber = issue.data.number;
+                } catch (error) {
+                  if (error.status === 410 || (error.message && error.message.includes('disabled'))) {
+                    console.warn(`GitHub Issues are disabled in this repo. Skipping issue creation for task ${task.id}.`);
+                    core.warning(`Issues disabled — skipping GitHub Issue for task ${task.id}. Jira ticket will still be created.`);
+                  } else {
+                    throw error;
+                  }
+                }
               }
 
               let jiraKey = task.jira_ticket || null;
