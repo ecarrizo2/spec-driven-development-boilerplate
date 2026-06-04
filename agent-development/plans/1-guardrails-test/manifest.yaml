@@ -1,2 +1,22 @@
-# Test
+plan_metadata:
+  epic_id: 1
+  task_id: 1
+  task_name: "guardrails-test"
+  status: draft
+  complexity: 2
+  target_repo: "example-api"
+  total_stages: 1
+  current_stage: 1
+  created: 2026-06-04
 
+stages:
+  - stage_id: 1
+    name: "Verify guardrails fire on SDD PR"
+    description: "Test that all guardrail checks trigger correctly"
+    instruction_file: "1-verify-guardrails.md"
+    status: todo
+    complexity: 1
+    context_files: [".github/workflows/guardrails.yml", ".github/workflows/validate.yml"]
+    output_files: []
+    verification_commands: ["bin/dev wf:validate"]
+    rollback_plan: "Revert test branch"
