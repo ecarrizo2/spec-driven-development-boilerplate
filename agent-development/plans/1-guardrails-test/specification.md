@@ -20,3 +20,4 @@ Verify that plan dispatch creates an execution branch + draft PR in the target r
 - [ ] Non-SDD PR gets zero guardrail noise
 - [ ] Plan dispatch reaches target repo
 - [ ] Draft PR created in target repo
+plan trigger
