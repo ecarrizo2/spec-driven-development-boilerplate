@@ -186,7 +186,13 @@ jobs:
 
               let jiraKey = task.jira_ticket || null;
               if (!jiraKey) {
-                const response = await fetch(`${process.env.JIRA_BASE_URL.replace(/\/$/, '')}/rest/api/3/issue`, {
+                const jiraUrl = process.env.JIRA_BASE_URL || '';
+                if (!jiraUrl) {
+                  console.warn(`JIRA_BASE_URL not configured. Skipping Jira ticket creation for task ${task.id}.`);
+                  core.warning(`Jira not configured — skipping Jira ticket for task ${task.id}. Set JIRA_BASE_URL, JIRA_USER_EMAIL, and JIRA_API_TOKEN secrets.`);
+                } else {
+                  try {
+                    const response = await fetch(`${jiraUrl.replace(/\/$/, '')}/rest/api/3/issue`, {
                   method: 'POST',
                   headers: {
                     Authorization: `Basic ${Buffer.from(`${process.env.JIRA_USER_EMAIL}:${process.env.JIRA_API_TOKEN}`).toString('base64')}`,
@@ -206,12 +212,17 @@ jobs:
                       ].join('\n')),
                     },
                   }),
-                });
-                if (!response.ok) {
-                  throw new Error(`Jira issue creation failed with status ${response.status}`);
+                    });
+                    if (!response.ok) {
+                      throw new Error(`Jira issue creation failed with status ${response.status}`);
+                    }
+                    const jira = await response.json();
+                    jiraKey = jira.key;
+                  } catch (jiraError) {
+                    console.warn(`Jira issue creation failed for task ${task.id}: ${jiraError.message}`);
+                    core.warning(`Jira ticket creation failed for task ${task.id}. Hub tracking will continue without it.`);
+                  }
                 }
-                const jira = await response.json();
-                jiraKey = jira.key;
               }
 
               mapping.push({
