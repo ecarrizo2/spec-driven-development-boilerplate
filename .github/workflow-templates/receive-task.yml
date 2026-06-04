@@ -28,6 +28,5 @@ jobs:
       hub_plan_pr: ${{ github.event.client_payload.plan_pr_number }}
       execution_branch: ${{ github.event.client_payload.execution_branch }}
       plan_dir: ${{ github.event.client_payload.plan_dir }}
-      target_repo_key: ${{ github.event.client_payload.target_repo_key }}
     secrets:
       HUB_CROSS_REPO_TOKEN: ${{ secrets.HUB_CROSS_REPO_TOKEN }}

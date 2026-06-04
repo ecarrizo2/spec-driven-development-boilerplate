@@ -248,12 +248,7 @@ jobs:
               plan_branch: '${{ steps.discover.outputs.branch_ref }}',
               plan_pr_number: context.payload.pull_request.number,
               plan_dir: '${{ steps.discover.outputs.plan_dir }}',
-              manifest_path: '${{ steps.discover.outputs.manifest_path }}',
-              target_repo_key: '${{ steps.discover.outputs.target_repo_key }}',
-              target_repo_full_name: '${{ steps.discover.outputs.target_repo_full_name }}',
               execution_branch: '${{ steps.discover.outputs.execution_branch }}',
-              branch_type: '${{ steps.discover.outputs.branch_type }}',
-              has_own_sdd: '${{ steps.discover.outputs.has_own_sdd }}',
               correlation_id: cid,
             };
 
