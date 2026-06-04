@@ -4,7 +4,7 @@ last_updated: 2026-06-04
 nodes:
   - id: 1
     task_id: 1
-    repo: example-api
+    repo: sdd-test-api
     title: "Guardrails test"
     branch: feat/PROJ-100_guardrails-test
     base: main
@@ -14,7 +14,7 @@ nodes:
     pr_number: null
   - id: 2
     task_id: 2
-    repo: example-api
+    repo: sdd-test-api
     title: "Dispatch test"
     branch: feat/PROJ-101_dispatch-test
     base: main
