@@ -7,58 +7,6 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 repositories:
-  sdd-test-api:
-    display_name: "SDD Test API"
-    description: "Backend API for SDD e2e testing"
-    git_url: "https://github.com/ecarrizo2/sdd-test-api.git"
-    submodule_path: "repos/sdd-test-api"
-    branches:
-      main: "main"
-    deployment:
-      system: helm
-      pipeline: gha
-      pipeline_file: ".github/workflows/deploy.yml"
-      environments:
-        - name: staging
-          auto_deploy_on: null
-          url: null
-          requires_approval: false
-    tech_stack:
-      language: typescript
-      framework: node
-      package_manager: npm
-    sdd:
-      has_own_sdd: false
-      agent_specs_path: null
-      architecture_docs_path: null
-    health_checks: []
-
-  sdd-test-frontend:
-    display_name: "SDD Test Frontend"
-    description: "Frontend app for SDD e2e testing"
-    git_url: "https://github.com/ecarrizo2/sdd-test-frontend.git"
-    submodule_path: "repos/sdd-test-frontend"
-    branches:
-      main: "main"
-    deployment:
-      system: static
-      pipeline: gha
-      pipeline_file: ".github/workflows/deploy.yml"
-      environments:
-        - name: preview
-          auto_deploy_on: null
-          url: null
-          requires_approval: false
-    tech_stack:
-      language: typescript
-      framework: react
-      package_manager: npm
-    sdd:
-      has_own_sdd: false
-      agent_specs_path: null
-      architecture_docs_path: null
-    health_checks: []
-
   # ─── EXAMPLE: Backend API ─────────────────────────────────────────────────
   example-api:
     display_name: "Example API"
