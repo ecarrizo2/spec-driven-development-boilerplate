@@ -1,15 +1,15 @@
 epic_id: 1
-last_updated: 2026-06-04
+last_updated: 2026-06-05
 
 nodes:
   - id: 1
     task_id: 1
     repo: sdd-test-api
     title: "Guardrails test"
-    branch: feat/PROJ-100_guardrails-test
+    branch: feat/1_guardrails-test
     base: main
     depends_on: []
-    status: planned
+    status: branched
     pr_url: null
     pr_number: null
   - id: 2

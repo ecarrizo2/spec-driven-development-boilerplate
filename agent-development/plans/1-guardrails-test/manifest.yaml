@@ -9,6 +9,22 @@ plan_metadata:
   current_stage: 0
   created: 2026-06-04
 
+  checklist:
+      CHK-001:
+        description: "All plan stages have verified successfully"
+        verified: false
+      CHK-002:
+        description: "Tests pass (bin/dev verify:full)"
+        verified: false
+      CHK-003:
+        description: "No lint warnings remain (bin/dev lint)"
+        verified: false
+      CHK-004:
+        description: "Architecture docs updated if this change affects system design"
+        verified: false
+      CHK-005:
+        description: "Blast radius matches declared scope in manifest"
+        verified: false
 stages:
   - stage_id: 1
     name: "Verify guardrails"

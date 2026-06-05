@@ -1,6 +1,6 @@
 ---
 epic_id: 1
-last_updated: 2026-06-04
+last_updated: 2026-06-05
 total_tasks: 2
 tasks:
   - id: 1
@@ -12,7 +12,7 @@ tasks:
     gh_issue: 8
     depends_on: []
     blocks: [2]
-    status: refined
+    status: activated
   - id: 2
     title: "Test dispatch chain"
     repo: sdd-test-api
