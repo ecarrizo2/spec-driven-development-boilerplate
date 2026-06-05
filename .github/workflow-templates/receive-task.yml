@@ -1,8 +1,9 @@
 # Target repo caller for the hub's receive-task reusable workflow.
 # Copy this file to your target repo's .github/workflows/ directory.
+# Replace YOUR-HUB-ORG/YOUR-HUB-REPO with your actual hub repo path.
 #
 # Prerequisites:
-#   1. Set HUB_REPO variable in repo settings (org/hub-repo-name)
+#   1. Set HUB_REPO variable in repo settings (org/hub-repo-name) — used in `hub_repo:` input
 #   2. Set HUB_CROSS_REPO_TOKEN secret (PAT with repo+workflow scope)
 #   3. The hub must have .github/workflows/receive-task.yml as a reusable workflow
 
@@ -14,11 +15,10 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   call-receive-task:
-    uses: ${{ vars.HUB_REPO }}/.github/workflows/receive-task.yml@main
+    uses: ecarrizo2/spec-driven-development-boilerplate/.github/workflows/receive-task.yml@main
     with:
       epic_id: ${{ github.event.client_payload.epic_id }}
       task_id: ${{ github.event.client_payload.task_id }}
@@ -30,3 +30,4 @@ jobs:
       plan_dir: ${{ github.event.client_payload.plan_dir }}
     secrets:
       HUB_CROSS_REPO_TOKEN: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
+      HUB_INTEGRITY_SECRET: ${{ secrets.HUB_INTEGRITY_SECRET }}
