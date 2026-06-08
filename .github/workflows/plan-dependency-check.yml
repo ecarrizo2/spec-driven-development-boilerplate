@@ -93,15 +93,17 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const path = require('path');
+            const { resolveEpicDirectory } = require(path.join(process.cwd(), 'bin/sync-state/epic-resolver'));
             const { resolveDependencies } = require(path.join(process.cwd(), 'bin/sync-state/validators'));
 
             const epicId = '${{ steps.discover.outputs.epic_id }}';
             const taskId = '${{ steps.discover.outputs.task_id }}';
-            const epicDir = path.join(process.cwd(), 'epics', 'active', epicId);
+            const epicDir = resolveEpicDirectory(process.cwd(), epicId);
 
-            if (!require('fs').existsSync(epicDir)) {
-              core.setOutput('deps_ok', 'true');
-              core.setOutput('message', 'Epic directory not found. Skipping dependency check.');
+            if (!epicDir) {
+              core.setOutput('deps_ok', 'false');
+              core.setOutput('blocked_by', 'epic-not-found');
+              core.setOutput('message', `## ⚠️ Dependency Check Failed\n\nUnable to resolve epic directory for epic \`${epicId}\`. Dependency guardrail cannot run safely.`);
               return;
             }
 
