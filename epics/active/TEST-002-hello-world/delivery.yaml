@@ -1,8 +1,8 @@
-# Delivery Manifest: Hello World MVP
+# Delivery Manifest: Hello World MVP Retry
 
 metadata:
-  epic_id: TEST-001
-  epic_title: Hello World MVP
+  epic_id: TEST-002
+  epic_title: Hello World MVP Retry
   branching_strategy: independent
   strategy_rationale: "Independent branches keep the API and frontend work decoupled."
   created: null
