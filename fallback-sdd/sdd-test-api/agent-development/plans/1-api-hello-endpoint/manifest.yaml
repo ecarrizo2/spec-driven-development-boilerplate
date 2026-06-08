@@ -1,0 +1,15 @@
+---
+task_id: 1
+task_name: API Hello Endpoint
+epic_id: TEST-003
+target_repo: sdd-test-api
+status: draft
+---
+
+# Task 1: API Hello Endpoint
+
+## Overview
+Implementation plan for task 1 from epic TEST-003.
+
+## Request
+See specification.md for details.
