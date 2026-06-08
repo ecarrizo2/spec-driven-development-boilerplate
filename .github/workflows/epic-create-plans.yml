@@ -150,22 +150,24 @@ jobs:
                 }
 
                 // Create minimal manifest
-                const manifestContent = `---
-task_id: ${task.id}
-task_name: ${task.title || `Task ${task.id}`}
-epic_id: ${epicId}
-target_repo: ${task.repo}
-status: draft
----
-
-# Task ${task.id}: ${task.title || 'Untitled'}
-
-## Overview
-Implementation plan for task ${task.id} from epic ${epicId}.
-
-## Request
-See specification.md for details.
-`;
+                const manifestContent = [
+                  '---',
+                  `task_id: ${task.id}`,
+                  `task_name: ${task.title || `Task ${task.id}`}`,
+                  `epic_id: ${epicId}`,
+                  `target_repo: ${task.repo}`,
+                  'status: draft',
+                  '---',
+                  '',
+                  `# Task ${task.id}: ${task.title || 'Untitled'}`,
+                  '',
+                  '## Overview',
+                  `Implementation plan for task ${task.id} from epic ${epicId}.`,
+                  '',
+                  '## Request',
+                  'See specification.md for details.',
+                  '',
+                ].join('\n');
 
                 fs.writeFileSync(path.join(planDir, 'manifest.yaml'), manifestContent);
 
