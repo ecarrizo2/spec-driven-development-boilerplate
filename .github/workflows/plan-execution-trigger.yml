@@ -1,8 +1,8 @@
 name: Plan Execution Trigger
 
 on:
-  pull_request_review:
-    types: [submitted]
+  pull_request:
+    types: [closed]
     branches:
       - main
 
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   dispatch:
-    if: github.event.review.state == 'approved' && startsWith(github.event.pull_request.head.ref, 'plan/')
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'plan/')
     runs-on: ubuntu-latest
 
     steps:
