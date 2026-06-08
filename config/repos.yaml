@@ -7,55 +7,11 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 repositories:
-  # ─── EXAMPLE: Backend API ─────────────────────────────────────────────────
-  example-api:
-    display_name: "Example API"
-    description: "Backend microservice (replace with your actual service)"
-    git_url: "git@github.com:your-org/example-api.git"
-    submodule_path: "repos/example-api"
-
-    branches:
-      main: "main"                   # Primary development branch
-      production: null               # Production branch (null if same as main)
-      staging: null                  # Staging branch (null if no staging branch)
-
-    deployment:
-      system: helm                   # helm | serverless | umd | ecs | static | manual
-      pipeline: gha                  # gha | jenkins | circleci | gitlab-ci | manual
-      pipeline_file: ".github/workflows/deploy.yml"
-      environments:
-        - name: staging
-          auto_deploy_on: "staging"  # Branch that triggers auto-deploy (null = manual)
-          url: "https://staging-api.example.com"
-          requires_approval: false
-        - name: production
-          auto_deploy_on: null       # Manual promotion
-          url: "https://api.example.com"
-          requires_approval: true
-
-    tech_stack:
-      language: typescript
-      framework: nestjs
-      package_manager: pnpm
-      database: postgresql
-      orm: prisma
-
-    sdd:
-      has_own_sdd: true              # Does this repo have its own sdd/ directory?
-      agent_specs_path: "sdd/agent-development/agent-specs/"
-      architecture_docs_path: "architecture-documentation/"
-
-    health_checks:
-      - url: "https://api.example.com/health"
-        method: GET
-        expected_status: 200
-
-  # ─── EXAMPLE: Frontend ────────────────────────────────────────────────────
-  example-frontend:
-    display_name: "Example Frontend"
-    description: "React frontend (replace with your actual app)"
-    git_url: "git@github.com:your-org/example-frontend.git"
-    submodule_path: "repos/example-frontend"
+  sdd-test-api:
+    display_name: "Test API"
+    description: "Test backend service"
+    git_url: "https://github.com/ecarrizo2/sdd-test-api.git"
+    submodule_path: "repos/sdd-test-api"
 
     branches:
       main: "main"
@@ -63,71 +19,58 @@ repositories:
       staging: null
 
     deployment:
-      system: static                 # Vercel / Netlify / S3+CloudFront
+      system: manual
       pipeline: gha
       pipeline_file: ".github/workflows/deploy.yml"
       environments:
-        - name: preview
-          auto_deploy_on: "pr"       # Preview deploys on PR
-          url: null                   # Dynamic per PR
-          requires_approval: false
-        - name: production
-          auto_deploy_on: "main"
-          url: "https://app.example.com"
+        - name: test
+          auto_deploy_on: null
+          url: null
           requires_approval: false
 
     tech_stack:
       language: typescript
-      framework: react
-      package_manager: pnpm
-
-    sdd:
-      has_own_sdd: false             # No SDD in this repo — uses hub's fallback-sdd/
-      agent_specs_path: null
-      architecture_docs_path: null
-
-  # ─── EXAMPLE: Infrastructure ──────────────────────────────────────────────
-  example-infra:
-    display_name: "Infrastructure (IaC)"
-    description: "Terraform/CDK for shared infrastructure (replace with your actual IaC repo)"
-    git_url: "git@github.com:your-org/example-infra.git"
-    submodule_path: "repos/example-infra"
-
-    branches:
-      main: "main"
-      production: null
-
-    deployment:
-      system: manual                 # terraform apply is manual/CI-gated
-      pipeline: gha
-      pipeline_file: ".github/workflows/terraform.yml"
-      environments:
-        - name: staging
-          auto_deploy_on: null
-          requires_approval: true
-        - name: production
-          auto_deploy_on: null
-          requires_approval: true
-
-    tech_stack:
-      language: hcl
-      framework: terraform
-      package_manager: null
+      framework: nodejs
+      package_manager: npm
 
     sdd:
       has_own_sdd: false
       agent_specs_path: null
       architecture_docs_path: null
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Cross-repo dependency topology
-# Defines runtime dependencies between services (for deployment ordering context)
-# ─────────────────────────────────────────────────────────────────────────────
+  sdd-test-frontend:
+    display_name: "Test Frontend"
+    description: "Test frontend application"
+    git_url: "https://github.com/ecarrizo2/sdd-test-frontend.git"
+    submodule_path: "repos/sdd-test-frontend"
+
+    branches:
+      main: "main"
+      production: null
+      staging: null
+
+    deployment:
+      system: static
+      pipeline: gha
+      pipeline_file: ".github/workflows/deploy.yml"
+      environments:
+        - name: test
+          auto_deploy_on: null
+          url: null
+          requires_approval: false
+
+    tech_stack:
+      language: typescript
+      framework: react
+      package_manager: npm
+
+    sdd:
+      has_own_sdd: false
+      agent_specs_path: null
+      architecture_docs_path: null
+
 topology:
   dependencies:
-    example-frontend:
-      depends_on: [example-api]
-      interface: "REST/GraphQL"
-    example-api:
-      depends_on: [example-infra]
-      interface: "infrastructure"
+    sdd-test-frontend:
+      depends_on: [sdd-test-api]
+      interface: "REST"
