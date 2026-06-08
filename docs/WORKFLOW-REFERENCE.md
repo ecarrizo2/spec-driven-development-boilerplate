@@ -376,55 +376,32 @@ jobs:
 
 ## Complete Automation Lifecycle
 
-```
-Human creates epic branch
-  └── epic-approval.yml
-       ├── Creates Jira + GitHub tickets
-       ├── Sets epic status → active
-       └── Squash-merges epic PR
+```mermaid
+flowchart TD
+  EPR["Epic PR opened (`epic/*`)"] -->|"approval review event"| W1["(1) epic-approval.yml"]
+  W1 -->|"creates one ticket per task"| TKS["Task tickets created (GitHub + Jira)"]
+  W1 -->|"squash merge"| EPM["Epic PR merged to main"]
+  EPM -->|"epic is active + tasks are ready"| PLANREADY["Planning starts for approved epic"]
+  TKS --> PLANREADY
+  PLANREADY -->|"agent/human opens plan PR (one per task)"| PPR["Plan PR opened (`plan/*`)"]
 
-Agent creates plan branch
-  └── plan-execution-trigger.yml (on approval)
-       ├── Reads manifest.yaml
-       ├── Dispatches task-assigned event to target repo
-       └── [correlation_id, integrity_token]
+  PPR -->|"approval review event"| W2["(2) plan-execution-trigger.yml"]
+  W2 -->|"repository_dispatch: task-assigned"| W3["(3) receive-task.yml (target repo)"]
+  W3 -->|"creates draft execution PR + context"| XPR["Execution PR opened in target repo"]
+  W3 -->|"repository_dispatch: pr-status-change"| W4["(4) target-status-events.yml"]
 
-Target repo receives task
-  └── receive-task.yml (reusable)
-       ├── Verifies integrity token
-       ├── Creates execution branch + .sdd/context.yaml
-       ├── Opens draft PR with cross-reference
-       └── Notifies hub: pr-status-change → delivery status
+  XPR -->|"pull_request opened/synchronize/ready_for_review"| W5["(5) notify-hub-verification.yml (target repo)"]
+  W5 -->|"repository_dispatch: verify-pr"| W6["(6) ai-verification-gate.yml"]
+  W6 -->|"advisory comment + tracking update"| XPR
 
-Agent pushes code to execution branch
-  └── notify-hub-verification.yml (reusable, on PR sync)
-       └── Dispatches verify-pr event to hub
+  XPR -->|"status changed to ready-for-review"| W7["(7) target-status-events.yml"]
+  W7 -->|"delivery/task statuses updated"| READY["Execution PR ready for human review"]
 
-Hub verifies PR
-  └── ai-verification-gate.yml
-       ├── Pre-checks (config-only skip, blast radius)
-       ├── AI comparison against epic + plan
-       ├── Posts advisory comment + status updates
-       └── Skips gracefully on API failure
-
-Agent completes, marks PR ready
-  └── target-status-events.yml (on pr-status-change)
-       ├── Validates status transition
-       ├── Updates delivery.yaml → ready-for-review
-       └── Updates task-graph.md → done
-
-Human reviews and merges target PR
-  └── post-merge-sync.yml
-       ├── Updates delivery.yaml → merged
-       ├── Updates task-graph.md → done
-       ├── Transitions Jira → Done
-       ├── Comments on hub plan PR
-       └── Checks epic completion → triggers archive if done
-
-All tasks done + all PRs merged
-  └── epic-completion.yml
-       ├── Notifies on epic tracking issue
-       └── Runs bin/dev wf:archive --dry-run
+  READY -->|"human merges target PR"| XMERGE["Execution PR merged (target repo main)"]
+  XMERGE -->|"pull_request closed (merged)"| W8["(8) post-merge-sync.yml"]
+  W8 --> Q{"All tasks done and all nodes merged?"}
+  Q -- "No: next task cycle" --> PPR
+  Q -- "Yes: finalize epic" --> W9["(9) epic-completion.yml"]
 ```
 
 ---
