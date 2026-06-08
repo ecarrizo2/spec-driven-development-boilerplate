@@ -12,7 +12,7 @@ tasks:
     target_branch: null
     request_file: "task-1-api.md"
     jira_ticket: null
-    gh_issue: null
+    gh_issue: 22
     depends_on: []
     blocks: [2]
     status: draft
@@ -24,7 +24,7 @@ tasks:
     target_branch: null
     request_file: "task-2-frontend.md"
     jira_ticket: null
-    gh_issue: null
+    gh_issue: 23
     depends_on: [1]
     blocks: []
     status: draft
