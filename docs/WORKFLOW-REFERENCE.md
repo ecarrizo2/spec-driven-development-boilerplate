@@ -45,6 +45,24 @@ Plus **2 caller templates** in `.github/workflow-templates/` for target repos th
 
 **Installation:** Run `bin/dev install-workflows <repo-name>` from the hub to copy caller workflows into a target repo.
 
+### Quick setup via `gh` CLI
+
+Use this in test environments to configure all required cross-repo credentials:
+
+```bash
+# Hub repo
+gh secret set HUB_CROSS_REPO_TOKEN --repo ecarrizo2/spec-driven-development-boilerplate --body "$PAT"
+
+# Child repos
+for repo in sdd-test-api sdd-test-frontend; do
+  gh secret set HUB_CROSS_REPO_TOKEN --repo "ecarrizo2/$repo" --body "$PAT"
+  gh secret set HUB_INTEGRITY_SECRET --repo "ecarrizo2/$repo" --body "$HUB_INTEGRITY_SECRET"
+  gh variable set HUB_REPO --repo "ecarrizo2/$repo" --body "ecarrizo2/spec-driven-development-boilerplate"
+done
+```
+
+> For production, use a long-lived least-privilege service token. For short-lived test runs, a temporary PAT is acceptable.
+
 ---
 
 ## Workflow Catalog

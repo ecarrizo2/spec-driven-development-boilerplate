@@ -11,6 +11,10 @@ permissions:
   pull-requests: write
   issues: write
 
+concurrency:
+  group: epic-create-plans-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
   create_plan_prs:
     if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'epic/')
@@ -22,6 +26,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
 
       - name: Discover epic context
         id: discover
@@ -101,8 +106,10 @@ jobs:
       - name: Create plan branches and PRs
         id: create_plans
         uses: actions/github-script@v7
+        env:
+          ALL_TASKS: ${{ steps.tasks.outputs.all_tasks }}
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
           script: |
             const fs = require('fs');
             const path = require('path');
@@ -110,7 +117,7 @@ jobs:
 
             const epicId = '${{ steps.discover.outputs.epic_id }}';
             const epicDir = '${{ steps.discover.outputs.epic_dir }}';
-            const allTasks = JSON.parse('${{ steps.tasks.outputs.all_tasks }}');
+            const allTasks = JSON.parse(process.env.ALL_TASKS || '[]');
 
             console.log(`Creating plan PRs for ${allTasks.length} tasks in epic ${epicId}...`);
 
