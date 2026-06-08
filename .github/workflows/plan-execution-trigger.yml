@@ -166,13 +166,52 @@ jobs:
             core.setOutput('task_name', found.taskName);
             core.setOutput('execution_branch', executionBranch);
 
+      - name: Validate plan for safety gates
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const path = require('path');
+            const { checkPendingMarkers, resolveDependencies, formatPendingError, formatDependencyError } = require(path.join(process.cwd(), 'bin/sync-state/validators'));
+
+            const planDir = '${{ steps.discover.outputs.plan_dir }}';
+            const epicDir = path.join(process.cwd(), 'epics', 'active', '${{ steps.discover.outputs.epic_id }}');
+            const specPath = path.join(planDir, 'specification.md');
+
+            // Check for PENDING markers
+            const pendingCheck = checkPendingMarkers(specPath);
+            if (pendingCheck.hasPending) {
+              core.warning(`⚠️  Found ${pendingCheck.count} PENDING marker(s) in specification`);
+              console.log(formatPendingError(pendingCheck.markers));
+              // Set output but don't fail yet (allows --allow-pending override)
+              core.setOutput('has_pending', 'true');
+            } else {
+              core.setOutput('has_pending', 'false');
+            }
+
+            // Check dependencies
+            const depsCheck = resolveDependencies(epicDir, '${{ steps.discover.outputs.task_id }}');
+            if (!depsCheck.allDone && depsCheck.blockedBy.length > 0) {
+              core.error(formatDependencyError(depsCheck.blockedBy));
+              core.setFailed(`Task is blocked by: ${depsCheck.blockedBy.join(', ')}`);
+            } else {
+              core.setOutput('dependencies_ok', 'true');
+            }
+
+      - name: Mark task status → planned on approval
+        env:
+          EPIC_ID: ${{ steps.discover.outputs.epic_id }}
+          TASK_ID: ${{ steps.discover.outputs.task_id }}
+        run: |
+          echo "Setting task status to 'planned' on plan PR approval..."
+          node bin/sync-state.js update-task "$EPIC_ID" "$TASK_ID" planned
+
       - name: Mark task activated and delivery branched
         env:
           EPIC_ID: ${{ steps.discover.outputs.epic_id }}
           TASK_ID: ${{ steps.discover.outputs.task_id }}
           EXECUTION_BRANCH: ${{ steps.discover.outputs.execution_branch }}
         run: |
-          node bin/sync-state.js update-task "$EPIC_ID" "$TASK_ID" activated
           node bin/sync-state.js record-pr "$EPIC_ID" "$TASK_ID" --branch="$EXECUTION_BRANCH" --status=branched
 
       - name: Run pre-dispatch artifact analysis
