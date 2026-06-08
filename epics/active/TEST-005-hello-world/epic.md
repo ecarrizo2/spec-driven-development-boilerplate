@@ -1,7 +1,7 @@
 ---
 id: TEST-005
 title: Hello World Workflow Validation
-status: draft
+status: active
 jira_epic: TEST-005
 ---
 
