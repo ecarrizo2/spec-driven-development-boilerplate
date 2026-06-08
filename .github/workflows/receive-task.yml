@@ -121,6 +121,7 @@ jobs:
           git push origin "${EXECUTION_BRANCH}"
 
       - name: Open draft PR
+        id: open-pr
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -153,6 +154,39 @@ jobs:
 
             core.setOutput('pr_number', String(pr.data.number));
             core.setOutput('pr_url', pr.data.html_url);
+
+      - name: Handover implementation to Copilot
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = Number('${{ steps.open-pr.outputs.pr_number }}');
+            if (!prNumber) {
+              console.log('No PR number found. Skipping Copilot handoff.');
+              return;
+            }
+
+            const body = [
+              '@copilot Please implement this task end-to-end based on `.sdd/context.yaml` and the linked hub plan.',
+              '',
+              `- Epic ID: \`${{ inputs.epic_id }}\``,
+              `- Task ID: \`${{ inputs.task_id }}\``,
+              `- Hub plan PR: \`${{ inputs.hub_repo }}#${{ inputs.hub_plan_pr }}\``,
+              `- Hub plan branch: \`${{ inputs.hub_plan_branch }}\``,
+              '',
+              'Requirements:',
+              '- Read the plan and specification from the hub context first.',
+              '- Implement code changes in this child repo branch only.',
+              '- Add/update tests and keep changes scoped to the task.',
+              '- Update PR body with implementation summary once complete.',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body,
+            });
 
       - name: Notify hub of PR creation
         uses: actions/github-script@v7

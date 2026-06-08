@@ -222,7 +222,8 @@ execution_branch, branch_type, has_own_sdd, correlation_id, integrity_token
 2. **Checkout and create execution branch** — uses configured branch type + ticket ID from the payload
 3. **Create `.sdd/context.yaml`** — structured metadata file committed to the branch. Contains `epic_id`, `task_id`, `task_name`, `hub_repo`, `hub_plan_branch`, `hub_plan_pr`, `target_repo_key`, timestamp
 4. **Open draft PR** — creates a draft PR with cross-reference metadata in the body (includes `**Hub plan PR:**` link)
-5. **Notify hub** — dispatches `pr-status-change` event back to hub so tracking files stay in sync
+5. **Handover to Copilot** — posts an automated `@copilot` comment on the execution PR with task + plan context
+6. **Notify hub** — dispatches `pr-status-change` event back to hub so tracking files stay in sync
 
 **Caller setup in target repo:**
 ```yaml
