@@ -40,13 +40,13 @@ jobs:
             const isEpicBranch = branch.startsWith('epic/');
             const isExecutionBranch = /^(feat|fix|chore|hotfix|refactor|docs|ci)\//.test(branch);
 
-            const branchBody = isPlanBranch ? branch.replace(/^plan\//, '') : branch;
+            const branchBody = branch.replace(/^(plan|epic)\//, '');
             const ticketId = branchBody.split('_')[0] || branchBody.split('-')[0] || '';
 
             const epicIdMatch = body.match(/Epic ID:\s*([^\n]+)/);
             const taskIdMatch = body.match(/Task ID:\s*([^\n]+)/);
-            const epicId = epicIdMatch ? epicIdMatch[1].trim() : ticketId;
-            const taskId = taskIdMatch ? taskIdMatch[1].trim() : ticketId;
+            const epicId = epicIdMatch ? epicIdMatch[1].trim() : (isEpicBranch ? ticketId : '');
+            const taskId = taskIdMatch ? taskIdMatch[1].trim() : (isPlanBranch ? ticketId : '');
 
             const targetPrMatch = body.match(/\*\*Target repo PR:\*\*\s*([^\n]+)/);
             const hubPrMatch = body.match(/\*\*Hub plan PR:\*\*\s*([^\n]+)/);
@@ -161,7 +161,7 @@ jobs:
             });
 
       - name: Transition Jira ticket (optional)
-        if: steps.context.outputs.epic_id != '' && steps.context.outputs.task_id != ''
+        if: steps.context.outputs.is_epic_branch != 'true' && steps.context.outputs.epic_id != '' && steps.context.outputs.task_id != ''
         env:
           JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
           JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
