@@ -1,0 +1,234 @@
+name: Plan Agent Pickup
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: write
+
+concurrency:
+  group: plan-agent-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  pickup:
+    if: startsWith(github.event.pull_request.head.ref, 'plan/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout plan branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Discover plan context
+        id: discover
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const path = require('path');
+            const { resolvePlanManifest, resolveEpicDirectory } = require(path.join(process.cwd(), 'bin/sync-state/epic-resolver'));
+            const { readTaskGraphTasks } = require(path.join(process.cwd(), 'bin/sync-state/task-graph'));
+
+            const branchRef = context.payload.pull_request.head.ref;
+            const branchBody = branchRef.replace(/^plan\//, '');
+            const taskId = branchBody.split(/[_-]/)[0];
+            const manifestPath = resolvePlanManifest(process.cwd(), null, taskId);
+
+            if (!manifestPath) {
+              core.setOutput('found', 'false');
+              core.setOutput('message', `No manifest found for task ${taskId} on ${branchRef}.`);
+              return;
+            }
+
+            const { readFrontmatterField } = require(path.join(process.cwd(), 'bin/sync-state/epic-resolver'));
+            const fs = require('fs');
+            const epicId = readFrontmatterField(manifestPath, 'epic_id') || '';
+            const targetRepo = readFrontmatterField(manifestPath, 'target_repo') || '';
+            const planDir = path.dirname(manifestPath);
+            const epicDir = epicId ? resolveEpicDirectory(process.cwd(), epicId) : null;
+
+            let taskTitle = '';
+            let requestFile = '';
+            if (epicDir) {
+              const taskGraphPath = path.join(epicDir, 'task-graph.md');
+              if (fs.existsSync(taskGraphPath)) {
+                const tasks = readTaskGraphTasks(taskGraphPath);
+                const task = tasks.find((t) => String(t.id) === String(taskId));
+                if (task) {
+                  taskTitle = task.title || '';
+                  requestFile = task.request_file || '';
+                }
+              }
+            }
+
+            core.setOutput('found', 'true');
+            core.setOutput('task_id', taskId);
+            core.setOutput('epic_id', epicId);
+            core.setOutput('target_repo', targetRepo);
+            core.setOutput('task_title', taskTitle);
+            core.setOutput('request_file', requestFile);
+            core.setOutput('manifest_path', manifestPath);
+            core.setOutput('plan_dir', planDir);
+
+      - name: Enrich plan artifacts
+        if: steps.discover.outputs.found == 'true'
+        env:
+          MANIFEST_PATH: ${{ steps.discover.outputs.manifest_path }}
+          PLAN_DIR: ${{ steps.discover.outputs.plan_dir }}
+          EPIC_ID: ${{ steps.discover.outputs.epic_id }}
+          TASK_ID: ${{ steps.discover.outputs.task_id }}
+          TASK_TITLE: ${{ steps.discover.outputs.task_title }}
+          TARGET_REPO: ${{ steps.discover.outputs.target_repo }}
+          REQUEST_FILE: ${{ steps.discover.outputs.request_file }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          const manifestPath = process.env.MANIFEST_PATH;
+          const specPath = path.join(process.env.PLAN_DIR, 'specification.md');
+          const now = new Date().toISOString();
+
+          function upsertFrontmatter(mdText, key, value) {
+            const match = mdText.match(/^---\n([\s\S]*?)\n---\n?/);
+            if (!match) return mdText;
+            const fm = match[1];
+            const rest = mdText.slice(match[0].length);
+            const line = `${key}: ${value}`;
+            const next = new RegExp(`^${key}:\\s*.*$`, 'm').test(fm)
+              ? fm.replace(new RegExp(`^${key}:\\s*.*$`, 'm'), line)
+              : `${fm}\n${line}`;
+            return `---\n${next}\n---\n${rest}`;
+          }
+
+          if (fs.existsSync(manifestPath)) {
+            let manifest = fs.readFileSync(manifestPath, 'utf8');
+            manifest = upsertFrontmatter(manifest, 'agent_generated', 'true');
+            manifest = upsertFrontmatter(manifest, 'agent_generated_at', `"${now}"`);
+            manifest = upsertFrontmatter(manifest, 'agent_generation_source', 'plan-agent-pickup');
+            fs.writeFileSync(manifestPath, manifest);
+          }
+
+          const summaryHeader = '## Agent Discovery Summary';
+          const summaryBody = [
+            summaryHeader,
+            '',
+            `- Epic ID: ${process.env.EPIC_ID || 'unknown'}`,
+            `- Task ID: ${process.env.TASK_ID || 'unknown'}`,
+            `- Task title: ${process.env.TASK_TITLE || 'unknown'}`,
+            `- Target repo: ${process.env.TARGET_REPO || 'unknown'}`,
+            `- Request file: ${process.env.REQUEST_FILE || 'unknown'}`,
+            '- Status: picked up by GitHub plan agent workflow',
+            '',
+          ].join('\n');
+
+          if (fs.existsSync(specPath)) {
+            let spec = fs.readFileSync(specPath, 'utf8');
+            if (!spec.includes(summaryHeader)) {
+              spec = `${spec.replace(/\s*$/, '')}\n\n${summaryBody}`;
+              fs.writeFileSync(specPath, spec);
+            }
+          }
+          NODE
+
+      - name: Commit agent updates
+        if: steps.discover.outputs.found == 'true'
+        run: |
+          if git diff --quiet; then
+            echo "No agent updates to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "${{ steps.discover.outputs.plan_dir }}"
+          git commit -m "chore(plan): agent pickup for task ${{ steps.discover.outputs.task_id }}"
+          git push origin "${{ github.event.pull_request.head.ref }}"
+
+      - name: Publish pickup check
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const found = '${{ steps.discover.outputs.found }}' === 'true';
+            const taskId = '${{ steps.discover.outputs.task_id }}' || 'unknown';
+            const message = found
+              ? `Agent pickup completed for task ${taskId}.`
+              : '${{ steps.discover.outputs.message }}';
+
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+            const headSha = pr.data.head.sha;
+
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Plan Generated by Agent',
+              head_sha: headSha,
+              status: 'completed',
+              conclusion: found ? 'success' : 'failure',
+              output: {
+                title: found ? 'Plan agent pickup completed' : 'Plan agent pickup failed',
+                summary: message,
+                text: found
+                  ? 'The plan branch has been picked up and enriched by the automated agent workflow.'
+                  : message,
+              },
+            });
+
+      - name: Comment pickup status
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const found = '${{ steps.discover.outputs.found }}' === 'true';
+            const marker = '<!-- plan-agent-pickup -->';
+            const body = found
+              ? [
+                  marker,
+                  '✅ **Plan agent pickup completed**',
+                  '',
+                  `- Task: \`${{ steps.discover.outputs.task_id }}\``,
+                  `- Epic: \`${{ steps.discover.outputs.epic_id }}\``,
+                  `- Target repo: \`${{ steps.discover.outputs.target_repo }}\``,
+                  '- Check run: `Plan Generated by Agent`',
+                ].join('\n')
+              : [
+                  marker,
+                  '❌ **Plan agent pickup failed**',
+                  '',
+                  '${{ steps.discover.outputs.message }}',
+                ].join('\n');
+
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+            });
+
+            const existing = comments.data.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body,
+              });
+            }
