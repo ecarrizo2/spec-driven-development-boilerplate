@@ -1,3 +1,10 @@
+---
+id: MVP-001
+title: "Hello World Cross-Repo Feature"
+status: open
+created_at: 2026-06-08T16:24:00Z
+---
+
 # MVP Epic: First Cross-Repo Feature
 
 **Epic ID:** MVP-001  
