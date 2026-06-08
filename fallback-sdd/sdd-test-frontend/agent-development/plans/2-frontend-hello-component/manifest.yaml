@@ -4,6 +4,9 @@ task_name: Frontend Hello Component
 epic_id: TEST-005
 target_repo: sdd-test-frontend
 status: draft
+agent_generated: true
+agent_generated_at: "2026-06-08T17:17:05.271Z"
+agent_generation_source: plan-agent-pickup
 ---
 
 # Task 2: Frontend Hello Component
