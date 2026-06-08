@@ -1,0 +1,14 @@
+# Delivery Manifest: Hello World MVP
+
+epic_id: TEST-001
+tasks:
+  - task_id: "1"
+    pr_url: ""
+    branch: ""
+    merged_at: ""
+    status: draft
+  - task_id: "2"
+    pr_url: ""
+    branch: ""
+    merged_at: ""
+    status: draft
