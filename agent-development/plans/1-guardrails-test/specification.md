@@ -20,3 +20,12 @@ Verify that plan dispatch creates an execution branch + draft PR in the target r
 - [ ] Non-SDD PR gets zero guardrail noise
 - [ ] Plan dispatch reaches target repo
 - [ ] Draft PR created in target repo
+
+## Agent Discovery Summary
+
+- Epic ID: 1
+- Task ID: 1
+- Task title: unknown
+- Target repo: sdd-test-api
+- Request file: unknown
+- Status: picked up by GitHub plan agent workflow
