@@ -1,0 +1,15 @@
+---
+task_id: 2
+task_name: Frontend Hello Component
+epic_id: TEST-005
+target_repo: sdd-test-frontend
+status: draft
+---
+
+# Task 2: Frontend Hello Component
+
+## Overview
+Implementation plan for task 2 from epic TEST-005.
+
+## Request
+See specification.md for details.
