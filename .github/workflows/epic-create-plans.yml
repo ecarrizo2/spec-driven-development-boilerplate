@@ -1,4 +1,4 @@
-name: Epic Auto-Dispatch
+name: Epic Auto-Create Plans
 
 on:
   pull_request:
@@ -12,7 +12,7 @@ permissions:
   issues: write
 
 jobs:
-  dispatch_tasks:
+  create_plan_prs:
     if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'epic/')
     runs-on: ubuntu-latest
 
@@ -98,122 +98,128 @@ jobs:
             core.setOutput('ready_tasks', JSON.stringify(readyTasks));
             core.setOutput('ready_count', readyTasks.length);
 
-      - name: Dispatch tasks to target repos
+      - name: Create plan branches and PRs
+        id: create_plans
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             const path = require('path');
-            const { generateCorrelationId, generateIntegrityToken } = require('./bin/sync-state/audit');
+            const { execSync } = require('child_process');
 
             const epicId = '${{ steps.discover.outputs.epic_id }}';
             const epicDir = '${{ steps.discover.outputs.epic_dir }}';
-            const readyTasks = JSON.parse('${{ steps.tasks.outputs.ready_tasks }}');
+            const allTasks = JSON.parse('${{ steps.tasks.outputs.all_tasks }}');
 
-            console.log(`Dispatching ${readyTasks.length} ready tasks for epic ${epicId}...`);
+            console.log(`Creating plan PRs for ${allTasks.length} tasks in epic ${epicId}...`);
 
-            function resolveRepoFullName(repoKey) {
-              const config = fs.readFileSync('config/repos.yaml', 'utf8');
-              const lines = config.split('\n');
-              let inRepo = false;
-              for (const line of lines) {
-                if (line.trim() === repoKey + ':') { inRepo = true; continue; }
-                if (inRepo && /^\S/.test(line) && !line.startsWith('  ')) { break; }
-                if (inRepo) {
-                  const m = line.match(/git_url:\s*"([^"]+)"/);
-                  if (m) {
-                    const url = m[1];
-                    const match = url.match(/github\.com[/:](.+?)(?:\.git)?$/);
-                    return match ? match[1] : null;
-                  }
-                }
-              }
-              return null;
+            function slugify(text) {
+              return String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
             }
 
-            function readTeamsConfig() {
-              const config = fs.readFileSync('config/teams.yaml', 'utf8');
-              const branchTypesMatch = config.match(/branch_types:\s*\[(.*?)\]/);
-              const branchTypes = branchTypesMatch
-                ? branchTypesMatch[1].split(',').map(s => s.trim().replace(/['"]/g, ''))
-                : ['feat'];
-              return branchTypes[0] || 'feat';
-            }
-
-            const branchType = readTeamsConfig();
             const results = [];
 
-            for (const task of readyTasks) {
+            for (const task of allTasks) {
               try {
-                const targetRepoFullName = resolveRepoFullName(task.repo);
-                if (!targetRepoFullName) {
-                  console.error(`Unable to resolve repo ${task.repo} for task ${task.id}`);
-                  results.push({ taskId: task.id, success: false, error: 'repo_not_found' });
-                  continue;
-                }
+                const taskSlug = slugify(task.title || `task-${task.id}`);
+                const planBranch = `plan/${task.id}_${taskSlug}`;
+                const planDir = `fallback-sdd/${task.repo}/agent-development/plans/${task.id}-${taskSlug}`;
 
-                const [owner, repo] = targetRepoFullName.split('/');
-                const cid = generateCorrelationId();
-                const executionBranch = `${branchType}/${task.id}_${task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+                console.log(`Creating plan branch: ${planBranch}`);
 
-                // Read request file content
+                // Create plan branch from main
+                execSync(`git checkout main`, { stdio: 'inherit' });
+                execSync(`git checkout -b "${planBranch}"`, { stdio: 'inherit' });
+
+                // Create plan directory structure
+                execSync(`mkdir -p "${planDir}"`, { stdio: 'inherit' });
+
+                // Read request file
                 const requestPath = path.join(epicDir, 'requests', task.request_file || `task-${task.id}.md`);
-                let requestContent = '';
+                let requestContent = 'No request file provided.';
                 if (fs.existsSync(requestPath)) {
                   requestContent = fs.readFileSync(requestPath, 'utf8');
                 }
 
-                const payload = {
-                  epic_id: epicId,
-                  task_id: task.id,
-                  task_name: task.title || `Task ${task.id}`,
-                  hub_repo: context.repo.owner + '/' + context.repo.repo,
-                  execution_branch: executionBranch,
-                  correlation_id: cid,
-                  request_content: requestContent,
-                  gh_issue: task.gh_issue || null,
-                  jira_ticket: task.jira_ticket || null,
-                };
+                // Create minimal manifest
+                const manifestContent = `---
+task_id: ${task.id}
+task_name: ${task.title || `Task ${task.id}`}
+epic_id: ${epicId}
+target_repo: ${task.repo}
+status: draft
+---
 
-                payload.integrity_token = generateIntegrityToken(
-                  process.env.HUB_INTEGRITY_SECRET || '',
-                  payload
-                );
+# Task ${task.id}: ${task.title || 'Untitled'}
 
-                await github.rest.repos.createDispatchEvent({
-                  owner,
-                  repo,
-                  event_type: 'task-assigned',
-                  client_payload: payload,
+## Overview
+Implementation plan for task ${task.id} from epic ${epicId}.
+
+## Request
+See specification.md for details.
+`;
+
+                fs.writeFileSync(path.join(planDir, 'manifest.yaml'), manifestContent);
+
+                // Create specification from request
+                fs.writeFileSync(path.join(planDir, 'specification.md'), requestContent);
+
+                // Commit
+                execSync(`git add "${planDir}"`, { stdio: 'inherit' });
+                execSync(`git config user.name "github-actions[bot]"`, { stdio: 'inherit' });
+                execSync(`git config user.email "github-actions[bot]@users.noreply.github.com"`, { stdio: 'inherit' });
+                execSync(`git commit -m "chore(plan): create plan for task ${task.id}"`, { stdio: 'inherit' });
+                execSync(`git push origin "${planBranch}"`, { stdio: 'inherit' });
+
+                // Create PR
+                const prTitle = `plan(${task.id}): ${task.title || 'Untitled'}`;
+                const prBody = [
+                  '## Plan for Task',
+                  '',
+                  `**Epic ID:** ${epicId}`,
+                  `**Task ID:** ${task.id}`,
+                  `**Target repo:** ${task.repo}`,
+                  `**Dependencies:** ${(task.depends_on || []).join(', ') || 'None'}`,
+                  '',
+                  '## Review Checklist',
+                  '- [ ] Specification is complete and clear',
+                  '- [ ] Dependencies are identified',
+                  '- [ ] Blast radius is acceptable',
+                  '',
+                  '**⚠️ Dependency Check:** This plan can only be approved if all dependencies are completed.',
+                  '',
+                  '**Next step:** Approve this PR to dispatch the task to the target repo.',
+                ].join('\n');
+
+                const prResult = await github.rest.pulls.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: prTitle,
+                  body: prBody,
+                  head: planBranch,
+                  base: 'main',
+                  draft: true,
                 });
 
-                console.log(`✓ Dispatched task ${task.id} to ${targetRepoFullName}`);
-                results.push({ taskId: task.id, success: true, targetRepo: targetRepoFullName });
+                console.log(`✓ Created plan PR #${prResult.data.number} for task ${task.id}`);
+                results.push({ 
+                  taskId: task.id, 
+                  success: true, 
+                  prNumber: prResult.data.number,
+                  branch: planBranch 
+                });
 
               } catch (error) {
-                console.error(`✗ Failed to dispatch task ${task.id}: ${error.message}`);
+                console.error(`✗ Failed to create plan for task ${task.id}: ${error.message}`);
                 results.push({ taskId: task.id, success: false, error: error.message });
               }
             }
 
-            core.setOutput('results', JSON.stringify(results));
+            // Return to main
+            execSync(`git checkout main`, { stdio: 'inherit' });
 
-      - name: Update task statuses
-        env:
-          EPIC_ID: ${{ steps.discover.outputs.epic_id }}
-          DISPATCH_RESULTS: ${{ steps.dispatch_tasks.outputs.results }}
-        run: |
-          echo "Updating task statuses to 'in_progress'..."
-          
-          RESULTS=$(echo '${{ steps.dispatch_tasks.outputs.results }}' | node -e "
-            const results = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
-            results.filter(r => r.success).forEach(r => console.log(r.taskId));
-          ")
-          
-          for TASK_ID in $RESULTS; do
-            node bin/sync-state.js update-task "$EPIC_ID" "$TASK_ID" in_progress || echo "Warning: Failed to update task $TASK_ID"
-          done
+            core.setOutput('results', JSON.stringify(results));
 
       - name: Commit tracking updates
         run: |
@@ -224,7 +230,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add epics
-          git commit -m "chore(epic): auto-dispatch tasks for ${{ steps.discover.outputs.epic_id }}"
+          git commit -m "chore(epic): record plan PRs for ${{ steps.discover.outputs.epic_id }}"
           git push origin main
 
       - name: Comment on epic PR
@@ -232,33 +238,33 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const results = JSON.parse('${{ steps.dispatch_tasks.outputs.results }}');
+            const results = JSON.parse('${{ steps.create_plans.outputs.results }}');
             const successCount = results.filter(r => r.success).length;
             const failCount = results.filter(r => !r.success).length;
 
             const body = [
-              '## 🚀 Epic Auto-Dispatch Complete',
+              '## 📋 Plan PRs Created',
               '',
               `**Epic ID:** ${{ steps.discover.outputs.epic_id }}`,
-              `**Tasks dispatched:** ${successCount}`,
-              `**Tasks failed:** ${failCount}`,
+              `**Plan PRs created:** ${successCount}`,
+              `**Failed:** ${failCount}`,
               '',
-              '### Dispatched Tasks',
+              '### Created Plan PRs',
               '',
               ...results.filter(r => r.success).map(r => 
-                `- ✅ Task ${r.taskId} → ${r.targetRepo}`
+                `- ✅ Task ${r.taskId} → PR #${r.prNumber} (\`${r.branch}\`)`
               ),
               '',
-              results.some(r => !r.success) ? '### Failed Tasks' : '',
+              results.some(r => !r.success) ? '### Failed Plans' : '',
               results.some(r => !r.success) ? '' : '',
               ...results.filter(r => !r.success).map(r => 
                 `- ❌ Task ${r.taskId}: ${r.error}`
               ),
               '',
               '**Next steps:**',
-              '- Child repos should have draft PRs created automatically',
-              '- Monitor child repo PRs and implement the changes',
-              '- Merge child PRs to complete the epic',
+              '- Review and approve each plan PR',
+              '- Dependencies will be checked automatically',
+              '- Upon approval, tasks will be dispatched to child repos',
             ].filter(Boolean).join('\n');
 
             await github.rest.issues.createComment({
