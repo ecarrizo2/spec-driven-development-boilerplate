@@ -1,0 +1,269 @@
+name: Epic Auto-Dispatch
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  dispatch_tasks:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'epic/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Discover epic context
+        id: discover
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { readFrontmatterField } = require(path.join(process.cwd(), 'bin/sync-state/epic-resolver'));
+
+            const branchRef = context.payload.pull_request.head.ref;
+            const branchBody = branchRef.replace(/^epic\//, '');
+            const branchTicket = branchBody.split(/[_-]/)[0] || branchBody;
+
+            const epicRoots = ['epics/active', 'epics/done', 'epics'];
+            let found = null;
+
+            for (const root of epicRoots) {
+              if (!fs.existsSync(root)) continue;
+              for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+                if (!entry.isDirectory() || entry.name === '_templates') continue;
+                const epicDir = path.join(root, entry.name);
+                const epicFile = path.join(epicDir, 'epic.md');
+                if (!fs.existsSync(epicFile)) continue;
+                const epicId = readFrontmatterField(epicFile, 'id');
+                if (String(epicId) === String(branchTicket) || entry.name.startsWith(epicId)) {
+                  found = { epicDir, epicId, epicFile };
+                  break;
+                }
+              }
+              if (found) break;
+            }
+
+            if (!found) {
+              throw new Error(`Unable to resolve epic for branch ${branchRef}`);
+            }
+
+            core.setOutput('epic_dir', found.epicDir);
+            core.setOutput('epic_id', found.epicId);
+
+      - name: Read task graph
+        id: tasks
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { readTaskGraphTasks } = require(path.join(process.cwd(), 'bin/sync-state/task-graph'));
+
+            const epicDir = '${{ steps.discover.outputs.epic_dir }}';
+            const taskGraphPath = path.join(epicDir, 'task-graph.md');
+
+            if (!fs.existsSync(taskGraphPath)) {
+              throw new Error(`Task graph not found: ${taskGraphPath}`);
+            }
+
+            const tasks = readTaskGraphTasks(taskGraphPath);
+            
+            // Filter tasks ready for dispatch (no pending dependencies)
+            const readyTasks = tasks.filter(task => {
+              const deps = task.depends_on || [];
+              if (deps.length === 0) return true;
+              
+              // Check if all dependencies are done
+              return deps.every(depId => {
+                const depTask = tasks.find(t => t.id === depId);
+                return depTask && depTask.status === 'done';
+              });
+            });
+
+            core.setOutput('all_tasks', JSON.stringify(tasks));
+            core.setOutput('ready_tasks', JSON.stringify(readyTasks));
+            core.setOutput('ready_count', readyTasks.length);
+
+      - name: Dispatch tasks to target repos
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { generateCorrelationId, generateIntegrityToken } = require('./bin/sync-state/audit');
+
+            const epicId = '${{ steps.discover.outputs.epic_id }}';
+            const epicDir = '${{ steps.discover.outputs.epic_dir }}';
+            const readyTasks = JSON.parse('${{ steps.tasks.outputs.ready_tasks }}');
+
+            console.log(`Dispatching ${readyTasks.length} ready tasks for epic ${epicId}...`);
+
+            function resolveRepoFullName(repoKey) {
+              const config = fs.readFileSync('config/repos.yaml', 'utf8');
+              const lines = config.split('\n');
+              let inRepo = false;
+              for (const line of lines) {
+                if (line.trim() === repoKey + ':') { inRepo = true; continue; }
+                if (inRepo && /^\S/.test(line) && !line.startsWith('  ')) { break; }
+                if (inRepo) {
+                  const m = line.match(/git_url:\s*"([^"]+)"/);
+                  if (m) {
+                    const url = m[1];
+                    const match = url.match(/github\.com[/:](.+?)(?:\.git)?$/);
+                    return match ? match[1] : null;
+                  }
+                }
+              }
+              return null;
+            }
+
+            function readTeamsConfig() {
+              const config = fs.readFileSync('config/teams.yaml', 'utf8');
+              const branchTypesMatch = config.match(/branch_types:\s*\[(.*?)\]/);
+              const branchTypes = branchTypesMatch
+                ? branchTypesMatch[1].split(',').map(s => s.trim().replace(/['"]/g, ''))
+                : ['feat'];
+              return branchTypes[0] || 'feat';
+            }
+
+            const branchType = readTeamsConfig();
+            const results = [];
+
+            for (const task of readyTasks) {
+              try {
+                const targetRepoFullName = resolveRepoFullName(task.repo);
+                if (!targetRepoFullName) {
+                  console.error(`Unable to resolve repo ${task.repo} for task ${task.id}`);
+                  results.push({ taskId: task.id, success: false, error: 'repo_not_found' });
+                  continue;
+                }
+
+                const [owner, repo] = targetRepoFullName.split('/');
+                const cid = generateCorrelationId();
+                const executionBranch = `${branchType}/${task.id}_${task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+
+                // Read request file content
+                const requestPath = path.join(epicDir, 'requests', task.request_file || `task-${task.id}.md`);
+                let requestContent = '';
+                if (fs.existsSync(requestPath)) {
+                  requestContent = fs.readFileSync(requestPath, 'utf8');
+                }
+
+                const payload = {
+                  epic_id: epicId,
+                  task_id: task.id,
+                  task_name: task.title || `Task ${task.id}`,
+                  hub_repo: context.repo.owner + '/' + context.repo.repo,
+                  execution_branch: executionBranch,
+                  correlation_id: cid,
+                  request_content: requestContent,
+                  gh_issue: task.gh_issue || null,
+                  jira_ticket: task.jira_ticket || null,
+                };
+
+                payload.integrity_token = generateIntegrityToken(
+                  process.env.HUB_INTEGRITY_SECRET || '',
+                  payload
+                );
+
+                await github.rest.repos.createDispatchEvent({
+                  owner,
+                  repo,
+                  event_type: 'task-assigned',
+                  client_payload: payload,
+                });
+
+                console.log(`✓ Dispatched task ${task.id} to ${targetRepoFullName}`);
+                results.push({ taskId: task.id, success: true, targetRepo: targetRepoFullName });
+
+              } catch (error) {
+                console.error(`✗ Failed to dispatch task ${task.id}: ${error.message}`);
+                results.push({ taskId: task.id, success: false, error: error.message });
+              }
+            }
+
+            core.setOutput('results', JSON.stringify(results));
+
+      - name: Update task statuses
+        env:
+          EPIC_ID: ${{ steps.discover.outputs.epic_id }}
+          DISPATCH_RESULTS: ${{ steps.dispatch_tasks.outputs.results }}
+        run: |
+          echo "Updating task statuses to 'in_progress'..."
+          
+          RESULTS=$(echo '${{ steps.dispatch_tasks.outputs.results }}' | node -e "
+            const results = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
+            results.filter(r => r.success).forEach(r => console.log(r.taskId));
+          ")
+          
+          for TASK_ID in $RESULTS; do
+            node bin/sync-state.js update-task "$EPIC_ID" "$TASK_ID" in_progress || echo "Warning: Failed to update task $TASK_ID"
+          done
+
+      - name: Commit tracking updates
+        run: |
+          if git diff --quiet; then
+            echo "No tracking changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add epics
+          git commit -m "chore(epic): auto-dispatch tasks for ${{ steps.discover.outputs.epic_id }}"
+          git push origin main
+
+      - name: Comment on epic PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const results = JSON.parse('${{ steps.dispatch_tasks.outputs.results }}');
+            const successCount = results.filter(r => r.success).length;
+            const failCount = results.filter(r => !r.success).length;
+
+            const body = [
+              '## 🚀 Epic Auto-Dispatch Complete',
+              '',
+              `**Epic ID:** ${{ steps.discover.outputs.epic_id }}`,
+              `**Tasks dispatched:** ${successCount}`,
+              `**Tasks failed:** ${failCount}`,
+              '',
+              '### Dispatched Tasks',
+              '',
+              ...results.filter(r => r.success).map(r => 
+                `- ✅ Task ${r.taskId} → ${r.targetRepo}`
+              ),
+              '',
+              results.some(r => !r.success) ? '### Failed Tasks' : '',
+              results.some(r => !r.success) ? '' : '',
+              ...results.filter(r => !r.success).map(r => 
+                `- ❌ Task ${r.taskId}: ${r.error}`
+              ),
+              '',
+              '**Next steps:**',
+              '- Child repos should have draft PRs created automatically',
+              '- Monitor child repo PRs and implement the changes',
+              '- Merge child PRs to complete the epic',
+            ].filter(Boolean).join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body,
+            });

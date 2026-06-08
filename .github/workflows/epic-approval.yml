@@ -316,10 +316,16 @@ jobs:
             " || echo "Jira transition attempted."
           fi
 
-      - name: Mark epic as approved (manual merge)
+      - name: Auto-merge epic PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER="${{ github.event.pull_request.number }}"
-          echo "✅ Epic approved and ready for merge"
-          echo "Please manually merge PR #$PR_NUMBER to activate task dispatch"
+          echo "Auto-merging epic PR #$PR_NUMBER..."
+          gh pr merge "$PR_NUMBER" --squash --delete-branch --auto || {
+            echo "Auto-merge failed. Attempting direct merge..."
+            gh pr merge "$PR_NUMBER" --squash --delete-branch || {
+              echo "⚠️ Could not auto-merge. Please merge manually."
+              exit 0
+            }
+          }
