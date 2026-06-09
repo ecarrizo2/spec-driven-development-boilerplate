@@ -1,7 +1,4 @@
 ---
-# ─────────────────────────────────────────────────────────────────────────────
-# Epic Metadata (machine-parseable)
-# ─────────────────────────────────────────────────────────────────────────────
 id: 1
 title: "Multi-Repo AI Workflow Smoke Test"
 status: pending
@@ -9,21 +6,13 @@ complexity: 5
 created: 2026-06-09
 last_updated: 2026-06-09
 owner: "Ezequiel Carrizo"
-
-# Jira integration
 jira_epic: null
-
-# Multi-repo scope
 scope:
   repos: ["sdd-test-api", "sdd-test-frontend"]
   primary_repo: "sdd-test-api"
-
-# Approval tracking (replaces folder-based approval)
 approval:
   approved_by: null
   approved_at: null
-
-# References (agents MUST read linked docs during epic conversation and task planning)
 references:
   confluence: []
   figma: []

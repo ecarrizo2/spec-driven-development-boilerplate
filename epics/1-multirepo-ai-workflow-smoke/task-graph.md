@@ -1,7 +1,4 @@
 ---
-# ─────────────────────────────────────────────────────────────────────────────
-# Task Graph Metadata (machine-parseable)
-# ─────────────────────────────────────────────────────────────────────────────
 epic_id: 1
 epic_title: "Multi-Repo AI Workflow Smoke Test"
 total_tasks: 2
