@@ -11,7 +11,7 @@ tasks:
     target_branch: null
     request_file: "1-api-express-hello.md"
     jira_ticket: null
-    gh_issue: null
+    gh_issue: 33
     depends_on: []
     blocks: [2]
     status: draft
@@ -23,7 +23,7 @@ tasks:
     target_branch: null
     request_file: "2-react-dashboard-greeting.md"
     jira_ticket: null
-    gh_issue: null
+    gh_issue: 34
     depends_on: [1]
     blocks: []
     status: draft
@@ -53,4 +53,3 @@ graph TD
 - Task 1 must land first so the API contract is available.
 - Task 2 is blocked on Task 1 and verifies cross-repo dependency handling.
 - Recommended activation order: 1 → 2.
-
