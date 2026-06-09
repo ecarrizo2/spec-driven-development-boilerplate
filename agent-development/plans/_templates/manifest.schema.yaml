@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Plan Manifest — YAML Schema Reference
+# Plan Manifest — YAML Schema Reference (Format Version 2.0)
 # ─────────────────────────────────────────────────────────────────────────────
 # This file documents the expected structure of manifest.yaml.
 # It is NOT a JSON Schema — it's a human-readable reference showing:
@@ -8,9 +8,11 @@
 #   - Which fields are required vs optional
 #
 # Use this to validate manifests manually or to build tooling.
+#
+# ⚠️  Keep in sync with agent-development/plans/_templates/manifest.yaml
 # ─────────────────────────────────────────────────────────────────────────────
 
-_schema_version: "1.0"
+_schema_version: "2.0"
 
 plan_metadata:
   _required: true
@@ -48,6 +50,11 @@ plan_metadata:
     type: date
     required: true
     format: "YYYY-MM-DD"
+  api_checkpoint:
+    type: boolean
+    required: false
+    default: false
+    description: "Inherited from request; true if any stage changes observable API behavior"
 
   approval:
     _required: true
@@ -83,6 +90,54 @@ dependencies:
     items: string
     description: "Project modules this plan touches"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Dependency Mapping (v2.0 — optional)
+# ─────────────────────────────────────────────────────────────────────────────
+# Use when the plan introduces or modifies cross-file public contracts.
+# Skip for plans with no new public interfaces or type changes.
+dependency_mapping:
+  _required: false
+  contracts:
+    type: array
+    required: false
+    items:
+      file:
+        type: string
+        required: true
+        description: "Relative path to the file containing the contract"
+      signatures:
+        type: array
+        items: string
+        required: false
+        description: "Function/method signatures introduced or modified"
+      types:
+        type: array
+        items: string
+        required: false
+        description: "Interface/type/schema definitions introduced or modified"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Delivery (standalone tasks only)
+# ─────────────────────────────────────────────────────────────────────────────
+# For epic tasks, delivery info lives in the epic's delivery.yaml instead.
+delivery:
+  _required: false
+  branch:
+    type: string
+    required: false
+    description: "e.g., feat/PROJ-123-add-user-notifications"
+  pr_url:
+    type: string
+    required: false
+    description: "e.g., https://github.com/org/repo/pull/123"
+  pr_number:
+    type: integer
+    required: false
+  pr_status:
+    type: enum
+    required: false
+    values: [planned, branched, draft-pr, in-progress, ready-for-review, merged]
+
 stages:
   _required: true
   type: array
@@ -110,6 +165,11 @@ stages:
       required: true
       values: [1, 2, 3, 5, 8]
       description: "Fibonacci — stage-level (13 is too large for a stage)"
+    api_checkpoint:
+      type: boolean
+      required: false
+      default: false
+      description: "true if this stage changes observable API behavior (pauses for human verification)"
     context_files:
       type: array
       items: string
@@ -147,6 +207,14 @@ _transitions:
     pending: [approved, changes-requested]
     changes-requested: [pending, approved]
     approved: []  # terminal (unless plan is reset to draft)
+
+  delivery.pr_status:
+    planned: [branched]
+    branched: [draft-pr]
+    draft-pr: [in-progress]
+    in-progress: [ready-for-review]
+    ready-for-review: [merged]
+    merged: []  # terminal
 
   stages[].status:
     todo: [in-progress, skipped]

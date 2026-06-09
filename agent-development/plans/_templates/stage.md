@@ -4,6 +4,8 @@
 **Status:** todo | in-progress | done | skipped | failed
 **Last Updated:** YYYY-MM-DD
 
+<!-- Plan Format Version: 2.0 — Structural Planning -->
+
 ---
 
 ## Objective
@@ -35,6 +37,14 @@
 
 ---
 
+> **Planning Principle:** Use structural mutations (AST verbs), not implementation code.
+> See `common-specs/structural-planning-principles.md` for guidance.
+> 
+> Valid AST verbs: Inject, Wrap, Delete, Rename, Append, Extract
+> Include signatures/types; omit loops, conditions, and business logic.
+
+---
+
 ## Prerequisites
 
 - [ ] Stage [N-1] is marked `done` in `manifest.json`
@@ -46,19 +56,29 @@
 
 ### Step [N].1: [Step Description]
 
-**File:** `path/to/file.ts`
-**Action:** create | modify | delete
+**Mutation:** Inject | Wrap | Delete | Rename | Append | Extract
+**Target:** `SymbolName` (class | function | interface | module)
+**Search keys:** `SymbolName`, `DependencySymbol` — _(grep-ready names to locate this target and its direct dependencies; omit for doc/spec steps)_
+**Signature/Contract:** [TypeScript signature, interface definition, or schema contract]
+**File hint:** `path/to/directory/` _(optional — always confirm with grep)_
 
-<!-- Detailed instruction for what to do, including code snippets where applicable. Be specific — the implementing agent should not need to make judgment calls here. -->
+<!-- Narrative instruction using AST verbs. Focus on structural intent — what to change and where — not how to implement. Include verification condition for this specific change.
+
+Example:
+Inject a new public async method into class `VendorResolver`. The method signature is `async getReviews(vendorId: string): Promise<Review[]>`. This method will delegate to `ReviewService.fetchByVendor()`. Verification: GraphQL query `{ vendor(id: "test") { reviews { id } } }` returns an array.
+-->
 
 ---
 
 ### Step [N].2: [Step Description]
 
-**File:** `path/to/file.ts`
-**Action:** create | modify | delete
+**Mutation:** Inject | Wrap | Delete | Rename | Append | Extract
+**Target:** `SymbolName` (class | function | interface | module)
+**Search keys:** `SymbolName`, `DependencySymbol` — _(grep-ready names to locate this target and its direct dependencies; omit for doc/spec steps)_
+**Signature/Contract:** [TypeScript signature, interface definition, or schema contract]
+**File hint:** `path/to/directory/` _(optional — always confirm with grep)_
 
-<!-- Detailed instruction... -->
+<!-- Narrative instruction using AST verbs... -->
 
 ---
 

@@ -38,11 +38,12 @@ Before your first response, silently read:
 3. **The request shell** — the file specified in Input above
 4. **Agent specs** — all files in `agent-development/agent-specs/`
 5. **Team config** — `config/teams.yaml`
-6. **Jira ticket templates** — `config/jira-ticket-templates.md` (hub-level file; canonical for all repos — no repo-level overrides).
-7. **Request template** — `agent-development/requests/_TEMPLATE-request.md`
-8. **Relevant source code** — read the files/modules this task will touch
-9. **Predecessor outputs** — if dependencies exist, check `plans/` for their results
-10. **Status reference** — `user-development/STATUS-REFERENCE.md`
+6. **Structural planning principles** — `common-specs/structural-planning-principles.md`
+7. **Jira ticket templates** — `config/jira-ticket-templates.md` (hub-level file; canonical for all repos — no repo-level overrides).
+8. **Request template** — `agent-development/requests/_TEMPLATE-request.md`
+9. **Relevant source code** — read the files/modules this task will touch
+10. **Predecessor outputs** — if dependencies exist, check `plans/` for their results
+11. **Status reference** — `user-development/STATUS-REFERENCE.md`
 
 ---
 
@@ -91,6 +92,34 @@ Before writing, summarize:
 6. Whether `api_checkpoint` should be true
 
 Ask: "Does this scope look right? Should I write the request?"
+
+---
+
+### Implementation Details Quality Bar
+
+When refining the Implementation Details section, apply this quality bar:
+
+| Dimension | Good (Structural) | Bad (Over-Specified) |
+|---|---|---|
+| **Scope** | Lists affected files/modules and their boundaries | Lists step-by-step procedures |
+| **Contracts** | Defines signatures, interfaces, schemas | Includes internal variable names and logic flow |
+| **Symbols** | Names the key classes, methods, and interfaces the planner will grep for (e.g., `VendorResolver`, `fetchByVendor`) | Omits identifiers, forcing the planner to grep blindly |
+| **Verification** | Describes how to test the change (commands, queries) | Describes what the code should do internally |
+| **Data flow** | Maps boundaries (Resolver → Service → DB) | Details loops, filters, calculations |
+| **Constraints** | Notes architectural rules (e.g., no business logic in resolvers) | Prescribes exact implementation approach |
+
+**Why this matters:**
+- Implementation Details feed directly into the planning agent
+- Over-specification causes plan-phase over-coding (token waste, brittleness)
+- Structural focus lets the planning agent make informed decisions without being over-constrained
+
+**During refinement:**
+- If the Implementation Details section reads like a step-by-step tutorial → revise to focus on contracts and boundaries
+- If it includes conditionals, loops, or calculations → extract the architectural intent and omit the implementation details
+- If it doesn't identify verification patterns → add them (verification commands, expected responses)
+- If it doesn't name the key symbols (classes, methods, interfaces) → add a **Key symbols** line so the planning agent has precise grep targets
+
+---
 
 ### Phase 5: Write (only when I say so)
 

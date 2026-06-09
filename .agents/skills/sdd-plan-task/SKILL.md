@@ -5,28 +5,28 @@ description: Create an implementation plan from an activated task request in thi
 
 ## Identify the Task Request
 
-Before starting, determine which task request to plan:
+Determine which task request to plan:
 
 1. **If you mentioned a specific file** (e.g., "plan `agent-development/requests/3-migrate-prompts-to-skills.md`") — use that path directly.
 2. **If you mentioned a task name or number** — find the matching file in `agent-development/requests/`.
 3. **If unspecified** — run `bin/dev wf:next` to find the next actionable task, or list `agent-development/requests/` and ask which task to plan.
 
-State which request you'll be planning before proceeding.
+State which request you'll plan.
 
 ---
 
 ## Context to Read
 
-Before planning, read and internalize:
-
 1. **Agent specs** — all files in `agent-development/agent-specs/`
 2. **Team config** — `config/teams.yaml`
 3. **The task request** — the file specified above (including YAML frontmatter)
 4. **Plan templates** — `agent-development/plans/_templates/manifest.yaml`, `specification.md`, `stage.md`
-5. **Status reference** — `user-development/STATUS-REFERENCE.md`
-6. **Relevant source code** — files/modules implied by the request's Implementation Details
-7. **If part of an epic:** the epic's `epic.md`, `task-graph.md`, and `delivery.yaml`
-8. **Past metrics (if available):** check `metrics/thunders/cycles/` for patterns from previous epics
+5. **Structural planning principles** — `common-specs/structural-planning-principles.md`
+6. **Planning examples** — `agent-development/plans/_templates/EXAMPLES.md` (before/after transformations)
+7. **Status reference** — `user-development/STATUS-REFERENCE.md`
+8. **Relevant source code** — files/modules implied by the request's Implementation Details
+9. **If part of an epic:** the epic's `epic.md`, `task-graph.md`, and `delivery.yaml`
+10. **Past metrics (if available):** check `metrics/thunders/cycles/` for patterns from previous epics
 
 ---
 
@@ -43,11 +43,77 @@ Before producing the plan, verify that the architecture docs you're relying on a
 
 ---
 
+## Structural Planning Enforcement
+
+> **Key principle:** Plans define **what to change and how to verify** — not how to implement.
+
+### Negative Constraints (Do NOT Include)
+
+When writing stage instruction files, you MUST NOT:
+
+- ❌ Write complete function bodies with internal logic (loops, conditions, variable assignments)
+- ❌ Include full code blocks that show implementation details (except pure TypeScript interfaces/types or schema definitions)
+- ❌ Paste entire files or large sections of files ("The complete X should look like...")
+- ❌ Include business logic calculations or data transformations
+- ❌ Write out full commit message bodies (use templates: `type(scope): TICKET-ID description`)
+
+**Example of over-coding (FORBIDDEN):**
+```typescript
+// ❌ Do NOT write this in a plan:
+async function getVendorReviews(vendorId: string): Promise<Review[]> {
+  const reviews = await this.reviewService.fetchByVendor(vendorId);
+  if (!reviews || reviews.length === 0) {
+    return [];
+  }
+  return reviews.filter(r => r.rating >= 3).sort((a, b) => b.createdAt - a.createdAt);
+}
+```
+
+### Required Format (DO Include)
+
+When writing stage instruction files, you MUST:
+
+- ✅ Use AST-targeted verbs: Inject, Wrap, Delete, Rename, Append, Extract
+- ✅ Include function signatures, TypeScript interfaces, API schemas, and database schema changes
+- ✅ Describe structural mutations: "Inject method X into class Y with signature Z"
+- ✅ Focus on contracts and boundaries between modules
+- ✅ Specify verification commands for each change
+- ✅ Include **Search keys** for every code-change step: 1–3 grep-ready symbol names (the primary target symbol and its direct dependencies) the executor can use to locate targets without relying on file paths
+
+**Example of structural planning (REQUIRED):**
+```markdown
+### Step 2.1: Add Review Fetching Method
+
+**Mutation:** Inject
+**Target:** `VendorResolver` (class)
+**Search keys:** `VendorResolver`, `ReviewService` — _(grep to locate class and its dependency)_
+**Signature/Contract:** `async getVendorReviews(vendorId: string): Promise<Review[]>`
+**File hint:** `src/vendor/` _(confirm with grep)_
+
+Inject a new public async method into class `VendorResolver`. The method delegates to `ReviewService.fetchByVendor()` and returns the raw array (no filtering or sorting logic in the resolver layer). Verification: GraphQL query `{ vendor(id: "test") { reviews { id rating } } }` returns an array.
+
+**Commit:** `feat(graphql): GPMP-XXXXX add vendor reviews resolver method`
+```
+
+### Self-Check Before Committing
+
+Before creating the plan branch, ask yourself:
+
+1. **Signature test:** Can I see any complete function bodies (with logic inside `{ }`) in my stage files? If yes, replace with signature + structural description.
+2. **Code block test:** Do any of my code blocks exceed 10 lines (excluding pure type definitions)? If yes, extract the signature and describe the change structurally.
+3. **Verification test:** Does each step include a concrete verification command or condition? If no, add it.
+4. **AST verb test:** Do my step descriptions use structural verbs (Inject, Wrap, Delete, etc.) or implementation details ("loop through", "calculate", "set variable")? If the latter, revise.
+5. **Token estimate:** Would the executing agent need to read 1000+ tokens to understand a single stage? If yes, focus on contracts and omit implementation details.
+
+If any answer suggests over-coding, revise the plan before committing.
+
+---
+
 ## Your Task
 
 Produce a complete plan folder in `agent-development/plans/<N-task-name>/`.
 
-After producing the plan, you must also:
+After producing the plan:
 1. **Create a feature branch** from `main` following the naming convention in `config/teams.yaml`
 2. **Commit the plan folder** to the branch
 3. **Push the branch and open a draft PR** using the `gh` CLI:
@@ -75,6 +141,7 @@ The folder must contain:
 - Populate all body sections from the template
 - Write thorough Open Questions for anything you cannot decide autonomously
 - Include the File Manifest with all files across all stages
+- Include the **Symbol Index** table — one row per code symbol touched across all code-change stages (classes, functions, interfaces). The executing agent uses this as its code map before starting execution. Omit symbols from spec/doc-update stages.
 - Include API Checkpoint details in relevant stage summaries (the curl/GraphQL command and expected response shape — these are approved at plan time)
 
 ### 3. Stage instruction files
@@ -89,11 +156,15 @@ The folder must contain:
 
 ## Constraints
 
-- Blast radius MUST stay within the request's stated scope
-- If you find a missing dependency, write it as an Open Question (don't guess)
+- Blast radius MUST stay within the request's scope
+- If you find a missing dependency, write it as an Open Question
 - Every `.ts` source change needs a corresponding test update or new test
 - Prisma schema changes get their own stage
 - Multiple commits per stage are expected — plan them explicitly in the commit table
+- Follow structural planning principles (see `common-specs/structural-planning-principles.md`):
+  - Use AST-targeted verbs (Inject, Wrap, Delete, Rename, Append, Extract) in stage instructions
+  - Include signatures and contracts; omit function bodies and business logic
+  - Verification commands over narrative validation descriptions
 
 ### Architecture Documentation Rule
 
@@ -121,7 +192,9 @@ This rule applies to ALL repos — whether they use their own `sdd/` + `architec
 
 ## Output
 
-Write all plan files directly without asking for confirmation first. Then:
+**Self-check:** Before creating the branch, review your stage files against the "Self-Check Before Committing" questions above. Revise any over-coded sections to be structural (signatures + AST verbs).
+
+Write all plan files directly. Then:
 
 1. **Create the branch** from `main` following the naming convention in `config/teams.yaml`
 2. **Commit the plan folder** to the branch

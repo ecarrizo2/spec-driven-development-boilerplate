@@ -184,6 +184,7 @@ Skills are invoked naturally in Zed and Claude Code — describe what you want a
 | `sdd-dispatch-tasks` | Dispatch refined tasks to target repos and update statuses to `activated` | Coordination |
 | `sdd-amend-epic` | Interactively amend an in-flight epic — add, split, remove, or resequence tasks | Coordination |
 | `sdd-retro-analysis` | Retrospective analysis on completed epic metrics — talking points + process recommendations | Coordination |
+| `sdd-slim-docs` | Apply the "what can't code answer?" conciseness pass to any documentation folder — produces a human-approved cut plan then executes | Coordination |
 
 **Skill files:** `.agents/skills/<name>/SKILL.md`
 **VS Code aliases:** `.github/prompts/<name>.prompt.md`

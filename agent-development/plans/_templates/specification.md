@@ -4,14 +4,15 @@
 # ─────────────────────────────────────────────────────────────────────────────
 plan_id: null                   # References manifest.yaml task_id
 title: ""
----
-
 # ═══════════════════════════════════════════════════════════════════════════
 # APPROVAL: The ONLY place to check or set plan approval status is:
 #   manifest.yaml → plan_metadata.approval.status
 #
 # Do NOT add a status field here — it goes stale and misleads agents.
 # ═══════════════════════════════════════════════════════════════════════════
+---
+
+<!-- Plan Format Version: 2.0 — Structural Planning (see common-specs/structural-planning-principles.md) -->
 
 # Implementation Plan: Task <N> — <Short Descriptive Title>
 
@@ -69,6 +70,7 @@ Before starting, the implementing agent **must** read and internalize these file
 
 **Reads:** `path/to/context-file.ts`, ...
 **Writes:** `path/to/new-or-modified-file.ts`, ...
+**Contracts:** Key signatures/types introduced or modified (see stage file for details)
 
 ---
 
@@ -131,6 +133,28 @@ Update human-facing documentation to reflect changes introduced by this plan.
 
 ---
 
+## Symbol Index
+
+<!--
+  List all code symbols touched by this plan. The executing agent uses these for
+  targeted grep sweeps before reading any file — eliminates full-file reads just to
+  locate a class or function definition.
+
+  Include only code-change stages; omit spec/doc-update stages.
+
+  Grep pattern tips:
+    Class:      class SymbolName
+    Method:     \.methodName\b
+    Interface:  interface IName
+    Decorator:  @DecoratorName
+-->
+
+| Symbol | Type | Grep pattern | Stages |
+|--------|------|--------------|--------|
+| `SymbolName` | class \| function \| interface | `class SymbolName` | 1 |
+
+---
+
 ## Post-Completion Checklist
 
 - [ ] All stage `status` fields in `manifest.yaml` are `done` (or `skipped` with justification)
@@ -150,3 +174,7 @@ Update human-facing documentation to reflect changes introduced by this plan.
 4. Multiple commits per stage are allowed — each commit should be a self-contained unit.
 5. Follow `sdd/agent-development/agent-specs/agent-workflow.md` for all execution rules.
 6. Follow `sdd/agent-development/agent-specs/git-workflow.md` for commit and branch conventions.
+7. Follow structural planning principles (see `common-specs/structural-planning-principles.md`):
+   - Use signatures/contracts, not implementation logic
+   - Use AST-targeted verbs (Inject, Wrap, Delete, etc.) in stage instructions
+   - Verification commands over narrative validation descriptions

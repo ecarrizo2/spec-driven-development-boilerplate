@@ -5,33 +5,33 @@ description: Execute an approved implementation plan in this hub — creates a b
 
 ## Identify the Plan
 
-Before starting, determine which plan to execute:
+Determine which plan to execute:
 
 1. **If you mentioned a specific folder** (e.g., "execute `agent-development/plans/3-migrate-prompts-to-skills/`") — use that path directly.
 2. **If you mentioned a task name or number** — find the matching folder in `agent-development/plans/`.
 3. **If unspecified** — list `agent-development/plans/` (exclude `_templates`) and ask which plan to execute.
 
-State which plan you'll be executing before proceeding.
+State which plan you'll execute.
 
 ---
 
 ## Context to Read
 
-Before executing, read:
-
 1. **Agent specs** — all files in `agent-development/agent-specs/`
-2. **Team config** — `config/teams.yaml` (hub-level conventions: co-author, merge strategy, Jira). For the target repo's **base branch**, read `config/repos.yaml` → `repositories.<name>.branches.default`. Do **not** use `fallback-sdd/<repo>/config/teams.yaml` for the base branch — it may be stale.
-3. **The plan** — `manifest.yaml` and `specification.md` in the plan folder
-4. **Status reference** — `user-development/STATUS-REFERENCE.md`
-5. **If part of an epic:** the `delivery.yaml` in the epic folder
+2. **Target repo's AGENTS.md** — `repos/<name>/AGENTS.md` if it exists. This is the authoritative source for that repo's coding style, build commands, framework-specific rules, and project conventions. It takes precedence over `fallback-sdd/<name>/agent-specs/agent-instructions.md` for anything coding-related. If no `AGENTS.md` exists in the submodule, read `fallback-sdd/<name>/agent-specs/agent-instructions.md` instead.
+3. **Team config** — `config/teams.yaml` (hub-level conventions: co-author, merge strategy, Jira). For the target repo's **base branch**, read `config/repos.yaml` → `repositories.<name>.branches.default`. Do **not** use `fallback-sdd/<repo>/config/teams.yaml` for the base branch — it may be stale.
+4. **The plan** — `manifest.yaml` and `specification.md` in the plan folder
+   - If `specification.md` contains a **Symbol Index** section, run each grep pattern from it before beginning Stage 1. This primes your code map and lets you locate any class, method, or interface without reading full files top-to-bottom.
+5. **Status reference** — `user-development/STATUS-REFERENCE.md`
+6. **If part of an epic:** the `delivery.yaml` in the epic folder
 
 ---
 
 ## Fallback-SDD Repos: Submodule Setup
 
-> **Skip this section** if `config/repos.yaml` shows `has_own_sdd: true` for the target repo. For own-SDD repos, the plan, branch, and code all live in the same repo and no extra steps are needed.
+> **Skip this section** if `config/repos.yaml` shows `has_own_sdd: true` for the target repo.
 
-If `has_own_sdd: false` (plan lives in `fallback-sdd/<repo>/agent-development/plans/`), the submodule at `repos/<repo>/` is the target for all code and git operations. Before any git or code work:
+If `has_own_sdd: false` (plan lives in `fallback-sdd/<repo>/agent-development/plans/`), the submodule at `repos/<repo>/` is the target for all code and git operations:
 
 1. Confirm the submodule path in `config/repos.yaml` → `repositories.<name>.submodule_path`
 2. Sync and initialize the submodule:
@@ -50,15 +50,13 @@ If `has_own_sdd: false` (plan lives in `fallback-sdd/<repo>/agent-development/pl
 | Branch checkout, commits, push, `gh pr create` | `repos/<repo-name>/` (submodule) |
 | Plan archiving, `delivery.yaml` / `task-graph.md` updates, documentation updates | Hub root |
 
-Pre-Flight Checks 4–6 below (branch and PR verification) run **from within `repos/<repo-name>/`**.
+Pre-Flight Checks 4–6 below run **from within `repos/<repo-name>/`**.
 
-When `gh pr create --draft` runs it targets the **submodule's remote** (e.g., `<org>/<repo-name>`), not the hub. The hub plan PR (`plan/` branch) is updated separately after execution as part of the Sync Rule.
+`gh pr create --draft` targets the **submodule's remote** (e.g., `tkww/TKMarketplace`), not the hub. The hub plan PR is updated separately per the Sync Rule.
 
 ---
 
 ## Pre-Flight Checks
-
-Before writing any code:
 
 1. Verify `manifest.yaml` → `plan_metadata.approval.status == "approved"`
 2. Verify no `PENDING` markers remain in `specification.md`
@@ -71,10 +69,10 @@ Before writing any code:
 
 ## Execution Protocol
 
-For each stage (in order):
+For each stage:
 
 1. **Read** the stage instruction file
-2. **Present the commit plan** to me — show the table of planned commits before writing code
+2. **Present the commit plan** — show the table of planned commits
 3. **Wait for my approval** of the commit plan
 4. **Execute commit units** one at a time:
    - Implement the change
@@ -84,29 +82,33 @@ For each stage (in order):
 5. **API Checkpoint** — if stage has `api_checkpoint: true`:
    - Provide the curl/GraphQL command from the stage instructions
    - STOP and wait for my confirmation before proceeding
-6. **After all commits in stage pass** → update `manifest.yaml` (stage status: `done`, increment current_stage)
+6. **After all commits pass** → update `manifest.yaml` (stage status: `done`, increment current_stage)
 7. **Push to branch** — the draft PR updates automatically
 
 After ALL stages complete:
 
 1. Run full verification (build + test + lint + typecheck)
 2. **Documentation update** (see section below)
-3. **Feedback & amendments** (see section below)
-4. Mark PR as **ready for review** (no longer draft)
-5. Update `manifest.yaml`: `plan_metadata.status: done` (the plan folder stays in place — do NOT move it)
-6. Final commit: `chore: <ticket-id> task complete`
-7. If epic task: update `delivery.yaml` node status to `ready-for-review`
-8. If epic task: update `task-graph.md` task status to `done`
+3. **Decisions update** (see section below)
+4. **Feedback & amendments** (see section below)
+5. Mark PR as **ready for review** (no longer draft)
+6. Update `manifest.yaml`: `plan_metadata.status: done` (the plan folder stays in place — do NOT move it)
+7. Update the originating **request file** status to `done`:
+   - For epic tasks: `epics/<epic>/requests/<N>-name.md`
+   - For standalone tasks: `agent-development/requests/<N>-name.md`
+   - Edit the `status:` field in the frontmatter
+   - If already `done` or file not found, note this and continue
+8. Final commit: `chore: <ticket-id> sync request and plan status`
+9. If epic task: update `delivery.yaml` node status to `ready-for-review`
+10. If epic task: update `task-graph.md` task status to `done`
 
 ---
 
 ## Documentation Update
 
-After all stages pass and before marking the PR ready:
-
-1. **Create new docs if needed** — if the implementation introduces new modules, services, patterns, or significant behavior, create a new document in the repo's `documentation/` folder (at hub level: `documentation/<repo>/`). Each doc should cover one concern.
-2. **Keep `architecture-overview.md` lean** — the overview file in `agent-specs/` is a **gateway** that links to detailed docs, not a dumping ground. If you find yourself adding more than 2-3 sentences to it, create a separate document and link to it instead.
-3. **Update existing docs** — if the change modifies behavior documented elsewhere, update those docs to match the new reality.
+1. **Create new docs if needed** — if introducing new modules, services, patterns, or significant behavior, create a new document in `documentation/<repo>/`. Each doc covers one concern.
+2. **Keep `architecture-overview.md` lean** — it's a **gateway** linking to detailed docs. If adding more than 2-3 sentences, create a separate document and link to it.
+3. **Update existing docs** — if modifying documented behavior, update those docs.
 4. **Link from overview** — if you created a new doc, add a one-line entry + link in `architecture-overview.md`.
 
 Priority order:
@@ -116,11 +118,25 @@ Priority order:
 
 ---
 
+## Decisions Update
+
+Ask: **did this task establish or change any hub-wide convention, pattern, naming standard, SDD process rule, or tool choice?**
+
+- **If yes:** create or update ADR files in `decisions/`. Use the next sequential number. Follow the existing format: conclusion first, then why, then consequences.
+- **If no:** skip.
+
+Triggers that indicate a decision should be recorded:
+- A new syntax, format, or notation is mandated (e.g., EARS, a naming convention, a schema change)
+- A directory structure or lifecycle model changes (e.g., folder flattening, status vocabulary)
+- The authoritative source for a class of content moves (e.g., templates centralized, prompts superseded by skills)
+- A hub-wide rule is added or removed from `AGENTS.md` or `common-specs/`
+- A new bin command or validation rule is introduced that defines permanent hub behavior
+
+---
+
 ## Feedback & Amendments
 
-After all stages pass and documentation is updated, review your discoveries:
-
-**If execution revealed new requirements that are OUT OF SCOPE for this task** (examples: missing env vars that need infra work, modules that are stubs needing implementation, API endpoints that don't exist yet, new integration tests needed in another repo):
+**If execution revealed new requirements OUT OF SCOPE** (examples: missing env vars, stub modules, missing API endpoints, needed integration tests in another repo):
 
 1. **Record the amendment** in the epic's `delivery.yaml` → `amendments:` section:
    ```yaml
@@ -141,31 +157,29 @@ After all stages pass and documentation is updated, review your discoveries:
 
 4. **Add a placeholder node** to `delivery.yaml` → `nodes:` (status: `planned`)
 
-5. **Create a Jira ticket** (if MCP is available) or mark as `jira_ticket: null # NEEDS CREATION`
+5. **Create a Jira ticket** (if MCP available) or mark as `jira_ticket: null # NEEDS CREATION`
 
-6. **Update `epic.md`** if the discovery changes the epic's scope or acceptance criteria
+6. **Update `epic.md`** if discovery changes scope or acceptance criteria
 
-This step ensures that no discovered work is lost and that the audit trail connects execution back to planning.
-
-**If execution revealed NO new requirements:** Skip this section.
+**If execution revealed NO new requirements:** Skip.
 
 ---
 
 ## Rules
 
-- Do NOT write code before I approve the commit plan
+- Do NOT write code before approval
 - Do NOT skip verification steps
 - Do NOT modify files outside the stage's blast_radius.write
 - Do NOT force-push to the branch
 - Do NOT merge the PR — humans merge manually
-- Multiple commits per stage are expected and encouraged
+- Multiple commits per stage are expected
 - If you discover something unexpected, classify it (info/question/blocker) and handle per `agent-workflow.md`
 
 ---
 
 ## Discovery Handling
 
-If you encounter something unexpected during execution:
+If encountering something unexpected:
 
 | Severity | Action |
 |---|---|
@@ -174,6 +188,6 @@ If you encounter something unexpected during execution:
 | `blocker` | Log in manifest.yaml, set status to `paused`, STOP and wait |
 | `scope_impact` | Log in manifest.yaml, continue execution, handle in Feedback & Amendments section at the end |
 
-For blockers: I'll edit the manifest with my decision, then resume with this same prompt.
+For blockers: I'll edit the manifest with my decision, then resume.
 
-For scope_impact: Do NOT stop execution. Complete your current task. Then record the amendment in the Feedback & Amendments section after all stages pass. This ensures the current task ships cleanly while the discovered work is properly queued.
+For scope_impact: Do NOT stop execution. Complete the task, then record the amendment in Feedback & Amendments after all stages pass.
