@@ -79,6 +79,12 @@ jobs:
             core.setOutput('manifest_path', manifestPath);
             core.setOutput('plan_dir', planDir);
 
+      # DEV BOT INTEGRATION POINT (plan synthesis):
+      # Replace this step if your internal "Dev Bot" should generate plan content instead of GitHub Models.
+      # Keep the outputs contract:
+      #   ai_ok=true|false
+      #   ai_plan_b64=<base64 JSON with summary/implementation_steps/files_to_touch/verification_steps/risks/open_questions>
+      #   ai_message=<status text>
       - name: Synthesize plan with AI
         id: ai_plan
         if: steps.discover.outputs.found == 'true'
@@ -163,6 +169,7 @@ jobs:
           ].join('\n');
 
           async function run() {
+            // DEV BOT INTEGRATION POINT: swap this HTTP call with your internal tool invocation.
             const MODEL_URL = 'https://models.github.ai/inference/chat/completions';
             const MODEL_NAME = 'openai/gpt-4o';
             let parsed = null;

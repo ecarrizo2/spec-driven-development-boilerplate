@@ -155,6 +155,9 @@ jobs:
             core.setOutput('pr_number', String(pr.data.number));
             core.setOutput('pr_url', pr.data.html_url);
 
+      # DEV BOT INTEGRATION POINT (implementation handoff in child repo):
+      # Replace this step if your internal "Dev Bot" should be triggered directly (API call / dispatch event / bot command).
+      # Current behavior uses @copilot PR comment as GitHub-native handoff.
       - name: Handover implementation to Copilot
         uses: actions/github-script@v7
         with:
