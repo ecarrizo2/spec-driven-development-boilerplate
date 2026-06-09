@@ -95,10 +95,11 @@ it('preflight-check has SDD detection gate', () => {
   assertContains(text, 'detect-sdd', 'preflight-check should have SDD detection');
 });
 
-it('no hardcoded feat/ branch prefix in dispatch', () => {
+it('plan execution uses extracted workflow scripts', () => {
   const text = fs.readFileSync(path.join(WORKFLOWS_DIR, 'plan-execution-trigger.yml'), 'utf8');
-  assertContains(text, 'branchType', 'plan trigger should use dynamic branch type');
-  assertContains(text, 'readTeamsConfig', 'plan trigger should read teams config');
+  assertContains(text, 'bin/workflow-scripts/plan-execution-trigger', 'plan trigger should require extracted script module');
+  assertContains(text, 'generateCorrelationStep', 'plan trigger should call module entrypoints');
+  assertContains(text, 'validatePlanForSafetyGates', 'plan trigger should call extracted validation');
 });
 
 it('all content:write workflows commit .sdd-audit', () => {
@@ -124,6 +125,14 @@ it('epic-approval has deduplication', () => {
 
 it('guardrails uses check runs not PR comments', () => {
   const text = fs.readFileSync(path.join(WORKFLOWS_DIR, 'guardrails.yml'), 'utf8');
-  assertContains(text, 'github.rest.checks.create', 'should create check runs');
-  assertContains(text, 'Guardrails:', 'check run names should be prefixed');
+  assertContains(text, 'bin/workflow-scripts/guardrails', 'guardrails should require extracted helpers');
+  assertContains(text, 'checkBlastRadius', 'guardrails should call blast radius helper');
+  assertContains(text, 'checkQualityChecklist', 'guardrails should call checklist helper');
+});
+
+it('validate workflow uses extracted helper module', () => {
+  const text = fs.readFileSync(path.join(WORKFLOWS_DIR, 'validate.yml'), 'utf8');
+  assertContains(text, 'bin/workflow-scripts/validate', 'validate should require extracted helpers');
+  assertContains(text, 'validateYamlAndFrontmatter', 'validate should call extracted validator');
+  assertContains(text, 'validateCrossReferencesOnHubPRs', 'validate should call extracted cross-ref helper');
 });

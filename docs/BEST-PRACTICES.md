@@ -2,9 +2,11 @@
 
 ## Workflow scripts
 
-- Keep `actions/github-script` blocks short.
-- Extract anything non-trivial into `bin/workflow-scripts/` or `bin/sync-state/`.
-- Prefer shared helpers for repeated YAML parsing, repo resolution, and audit hooks.
+- Keep `actions/github-script` blocks to orchestration only.
+- Extract parsing, validation, branching, comments, and dispatch logic into `bin/workflow-scripts/`.
+- If code is shared outside workflows, move it into `bin/sync-state/` and test it there.
+- Prefer shared helpers for repeated YAML parsing, repo resolution, audit hooks, and PR metadata extraction.
+- If a new inline block grows beyond a few lines, it probably belongs in a module.
 
 ## Repository registry
 
@@ -20,3 +22,5 @@
 
 - Favor small, single-purpose files over long inline workflow scripts.
 - Keep commit messages and PR bodies aligned with the actual repo state.
+- Prefer explicit inputs over ambient state in workflow helpers.
+- Keep helpers pure where possible; make side effects obvious and isolated.

@@ -17,6 +17,8 @@ The hub ships **13 workflows** organized into three groups:
 
 Plus **2 caller templates** in `.github/workflow-templates/` for target repos that can't use reusable workflows directly.
 
+The workflows are intentionally thin. Business logic lives in `bin/workflow-scripts/` or `bin/sync-state/`; YAML should mostly wire inputs, outputs, and job order.
+
 ---
 
 ## Required Setup
@@ -62,6 +64,13 @@ done
 ```
 
 > For production, use a long-lived least-privilege service token. For short-lived test runs, a temporary PAT is acceptable.
+
+### Authoring workflow changes
+
+- Put reusable logic in `bin/workflow-scripts/` first.
+- Put shared state/CLI logic in `bin/sync-state/`.
+- Keep GitHub Actions steps as wrappers around those modules.
+- Add or update tests when the extracted helper is non-trivial.
 
 ---
 
@@ -475,6 +484,9 @@ node bin/sync-state.js audit-summary
 
 # List all known error codes
 node bin/sync-state.js list-errors
+
+# Run the workflow-helper test suite
+cd bin && npm test
 ```
 
 ## Adding a New Target Repo

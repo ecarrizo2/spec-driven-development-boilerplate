@@ -22,33 +22,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const branch = context.payload.pull_request.head.ref;
-            const body = context.payload.pull_request.body || '';
-
-            const isEpicOrPlan = branch.startsWith('epic/') || branch.startsWith('plan/');
-
-            const execPattern = /^(feat|fix|chore|hotfix|refactor|docs|ci)\/[A-Z][A-Z0-9]+-\d+_.+$/;
-            const isExecPattern = execPattern.test(branch);
-
-            const hasSddMetadata = /Epic ID:|Task ID:|Hub plan PR:|Target repo PR:|\.sdd\/context\.yaml/.test(body);
-
-            const isSdd = isEpicOrPlan || (isExecPattern && hasSddMetadata);
-
-            let branchType = 'unknown';
-            if (branch.startsWith('epic/')) branchType = 'epic';
-            else if (branch.startsWith('plan/')) branchType = 'plan';
-            else if (execPattern.test(branch)) branchType = 'execution';
-
-            core.setOutput('is_sdd', String(isSdd));
-            core.setOutput('branch_type', branchType);
-
-            if (!isSdd) {
-              console.log('Non-SDD PR detected. All guardrails will be skipped.');
-              console.log(`  Branch: ${branch}`);
-              console.log(`  Has SDD metadata: ${hasSddMetadata}`);
-            } else {
-              console.log(`SDD PR detected. Branch type: ${branchType}`);
-            }
+            const workflow = require('./bin/workflow-scripts/guardrails');
+            return await workflow.detectSddStep({ context, core });
 
   branch-naming:
     runs-on: ubuntu-latest
@@ -67,61 +42,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const branch = context.payload.pull_request.head.ref;
-            const issues = [];
-
-            const epicPattern = /^epic\/[A-Z][A-Z0-9]+-\d+_.+$/;
-            const planPattern = /^plan\/[A-Z][A-Z0-9]+-\d+_.+$/;
-            const execPattern = /^(feat|fix|chore|hotfix|refactor|docs|ci)\/[A-Z][A-Z0-9]+-\d+_.+$/;
-
-            let branchType = 'unknown';
-
-            if (branch.startsWith('epic/')) {
-              branchType = 'epic';
-              if (!epicPattern.test(branch)) {
-                issues.push(`Does not match \`epic/<TICKET-ID>_<description>\`. Example: \`epic/PROJ-123_add-feature\``);
-              }
-            } else if (branch.startsWith('plan/')) {
-              branchType = 'plan';
-              if (!planPattern.test(branch)) {
-                issues.push(`Does not match \`plan/<TICKET-ID>_<description>\`. Example: \`plan/PROJ-456_implement\``);
-              }
-            } else if (/^(feat|fix|chore|hotfix|refactor|docs|ci)\//.test(branch)) {
-              branchType = 'execution';
-              if (!execPattern.test(branch)) {
-                issues.push(`Does not match \`<type>/<TICKET-ID>_<description>\`. Example: \`feat/PROJ-789_add-endpoint\``);
-              }
-            }
-
-            core.setOutput('branch_type', branchType);
-
-            const annotations = issues.map((msg) => ({
-              path: 'branch',
-              start_line: 1,
-              end_line: 1,
-              annotation_level: 'warning',
-              message: msg,
-              title: 'Branch naming',
-            }));
-
-            const conclusion = issues.length > 0 ? 'neutral' : 'success';
-            const title = issues.length > 0
-              ? `Branch "${branch}" — ${issues.length} advisory`
-              : `Branch "${branch}" — OK`;
-
-            const summary = issues.length > 0
-              ? ['**Branch naming advisory**', '', ...issues.map(i => `- ${i}`), '', 'See `common-specs/git-workflow.md` for conventions.'].join('\n')
-              : 'Branch naming follows conventions.';
-
-            await github.rest.checks.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'Guardrails: Branch Naming',
-              head_sha: context.payload.pull_request.head.sha,
-              status: 'completed',
-              conclusion,
-              output: { title, summary, annotations },
-            });
+            const workflow = require('./bin/workflow-scripts/guardrails');
+            return await workflow.checkBranchNaming({ github, context, core });
 
   cross-reference:
     runs-on: ubuntu-latest
@@ -134,69 +56,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const path = require('path');
-            const { getDeliveryNodeById } = require(path.join(process.cwd(), 'bin/sync-state/epic-resolver'));
-
-            const pr = context.payload.pull_request;
-            const body = pr.body || '';
-            const branchType = '${{ needs.detect-sdd.outputs.branch_type }}';
-            const epicMatch = body.match(/\*\*Epic ID:\*\*\s*([^\n]+)/);
-            const taskMatch = body.match(/\*\*Task ID:\*\*\s*([^\n]+)/);
-            const branchTask = pr.head.ref.startsWith('plan/') ? (pr.head.ref.replace(/^plan\//, '').split(/[_-]/)[0] || '') : '';
-            const epicId = epicMatch ? epicMatch[1].trim() : '';
-            const taskId = taskMatch ? taskMatch[1].trim() : branchTask;
-            const node = epicId && taskId ? getDeliveryNodeById(process.cwd(), epicId, taskId) : null;
-            const targetRepoLinkPublished = !!(node && node.pr_url);
-
-            const annotations = [];
-            const findings = [];
-
-            if (branchType === 'plan') {
-              if (targetRepoLinkPublished && !/\*\*Target repo PR:\*\*/.test(body)) {
-                findings.push('Missing `**Target repo PR:** <org>/<repo>#<number>`');
-                annotations.push({
-                  path: 'PR description',
-                  start_line: 1,
-                  end_line: 1,
-                  annotation_level: 'warning',
-                  message: 'Missing Target repo PR cross-reference',
-                  title: 'Cross-reference',
-                });
-              }
-            }
-
-            if (branchType === 'execution') {
-              if (!/\*\*Hub plan PR:\*\*/.test(body)) {
-                findings.push('Missing `**Hub plan PR:** <org>/<hub-repo>#<number>`');
-              }
-              if (!/Epic ID:\s*[^\n]+/.test(body)) {
-                findings.push('Missing `Epic ID:` field');
-              }
-              if (!/Task ID:\s*[^\n]+/.test(body)) {
-                findings.push('Missing `Task ID:` field');
-              }
-            }
-
-            if (branchType === 'unknown' || findings.length === 0) return;
-
-            const conclusion = findings.length > 0 ? 'neutral' : 'success';
-            const title = findings.length > 0
-              ? `${findings.length} cross-reference issue(s)`
-              : 'Cross-references OK';
-
-            const summary = findings.length > 0
-              ? ['**Cross-reference advisory**', '', ...findings.map(f => `- ${f}`), '', 'See `common-specs/pr-conventions.md`.'].join('\n')
-              : 'PR cross-references are present.';
-
-            await github.rest.checks.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'Guardrails: Cross-References',
-              head_sha: pr.head.sha,
-              status: 'completed',
-              conclusion,
-              output: { title, summary, annotations },
-            });
+            const workflow = require('./bin/workflow-scripts/guardrails');
+            return await workflow.checkCrossReferences({ github, context, core });
 
   blast-radius:
     runs-on: ubuntu-latest
@@ -215,83 +76,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const branch = context.payload.pull_request.head.ref;
-            const branchType = '${{ needs.detect-sdd.outputs.branch_type }}';
-
-            const files = await github.paginate(github.rest.pulls.listFiles, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number,
-              per_page: 100,
-            });
-
-            const changedPaths = files.map(f => f.filename);
-            const hubTrackingPaths = ['epics/', 'agent-development/', 'fallback-sdd/', 'documentation/', '.github/'];
-
-            const annotations = [];
-            const findings = [];
-
-            if (branchType === 'plan') {
-              const unexpected = changedPaths.filter(f =>
-                !hubTrackingPaths.some(p => f.startsWith(p)) &&
-                !f.startsWith('.sdd') &&
-                f !== '.gitignore'
-              );
-
-              if (unexpected.length > 0) {
-                findings.push(`${unexpected.length} file(s) outside expected hub tracking paths`);
-                for (const f of unexpected.slice(0, 5)) {
-                  annotations.push({
-                    path: f,
-                    start_line: 1,
-                    end_line: 1,
-                    annotation_level: 'warning',
-                    message: 'Plan branches should only modify hub tracking files',
-                    title: 'Blast radius',
-                  });
-                }
-              }
-            }
-
-            if (branchType === 'execution') {
-              const nonCodeFiles = changedPaths.filter(f =>
-                f.startsWith('epics/') || f.startsWith('fallback-sdd/') || f.startsWith('agent-development/')
-              );
-              if (nonCodeFiles.length > 0) {
-                findings.push(`${nonCodeFiles.length} hub tracking file(s) found in execution branch`);
-                for (const f of nonCodeFiles.slice(0, 5)) {
-                  annotations.push({
-                    path: f,
-                    start_line: 1,
-                    end_line: 1,
-                    annotation_level: 'warning',
-                    message: 'Execution branches should not modify hub tracking files',
-                    title: 'Blast radius',
-                  });
-                }
-              }
-            }
-
-            if (changedPaths.length === 0) return;
-
-            const conclusion = findings.length > 0 ? 'neutral' : 'success';
-            const title = findings.length > 0
-              ? `${findings.length} blast radius advisory`
-              : `Blast radius OK (${changedPaths.length} files)`;
-
-            const summary = findings.length > 0
-              ? ['**Blast radius advisory**', '', ...findings.map(f => `- ${f}`), '', 'See `common-specs/sdd-process.md` for blast radius rules.'].join('\n')
-              : 'All changed files are within expected scope.';
-
-            await github.rest.checks.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'Guardrails: Blast Radius',
-              head_sha: context.payload.pull_request.head.sha,
-              status: 'completed',
-              conclusion,
-              output: { title, summary, annotations },
-            });
+            const workflow = require('./bin/workflow-scripts/guardrails');
+            return await workflow.checkBlastRadius({ github, context, core });
 
   title-convention:
     runs-on: ubuntu-latest
@@ -304,50 +90,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const title = context.payload.pull_request.title || '';
-            const branch = context.payload.pull_request.head.ref;
-            const issues = [];
-
-            const isConventional = /^(feat|fix|chore|hotfix|refactor|docs|ci)(\(.+\))?:\s/.test(title);
-            const hasTicketId = /\[[A-Z][A-Z0-9]+-\d+\]/.test(title);
-
-            if (!isConventional && title.length > 0) {
-              issues.push('Does not follow conventional commit: `<type>(<scope>): <description>`');
-            }
-
-            const execPrefixes = ['feat/', 'fix/', 'chore/', 'hotfix/', 'refactor/', 'docs/', 'ci/'];
-            const isExec = execPrefixes.some(p => branch.startsWith(p));
-            if (isExec && !hasTicketId) {
-              issues.push('Missing ticket ID: `<type>(<scope>): <description> [TICKET-ID]`');
-            }
-
-            const annotations = issues.map((msg) => ({
-              path: 'PR title',
-              start_line: 1,
-              end_line: 1,
-              annotation_level: 'warning',
-              message: msg,
-              title: 'Title convention',
-            }));
-
-            const conclusion = issues.length > 0 ? 'neutral' : 'success';
-            const sTitle = issues.length > 0
-              ? `${issues.length} title convention issue(s)`
-              : 'Title OK';
-
-            const summary = issues.length > 0
-              ? ['**PR title convention advisory**', '', ...issues.map(i => `- ${i}`), '', 'See `common-specs/pr-conventions.md`.'].join('\n')
-              : 'PR title follows conventions.';
-
-            await github.rest.checks.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'Guardrails: Title Convention',
-              head_sha: context.payload.pull_request.head.sha,
-              status: 'completed',
-              conclusion,
-              output: { title: sTitle, summary, annotations },
-            });
+            const workflow = require('./bin/workflow-scripts/guardrails');
+            return await workflow.checkTitleConvention({ github, context });
 
   checklist:
     runs-on: ubuntu-latest
@@ -365,84 +109,5 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
-            const path = require('path');
-            const { execFileSync } = require('child_process');
-
-            const walk = (dir, results = []) => {
-              if (!fs.existsSync(dir)) return results;
-              for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-                if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '_templates') continue;
-                const full = path.join(dir, entry.name);
-                if (entry.isDirectory()) { results.push(full); walk(full, results); }
-              }
-              return results;
-            };
-
-            const roots = ['agent-development/plans', 'fallback-sdd'];
-            const annotations = [];
-            let foundChecklists = 0;
-            let incompleteChecklists = 0;
-
-            for (const root of roots) {
-              if (!fs.existsSync(root)) continue;
-              for (const dir of walk(root)) {
-                const manifest = path.join(dir, 'manifest.yaml');
-                if (!fs.existsSync(manifest)) continue;
-                const text = fs.readFileSync(manifest, 'utf8');
-                if (!text.includes('checklist:')) continue;
-
-                foundChecklists += 1;
-                try {
-                  const result = JSON.parse(execFileSync('node', [
-                    'bin/sync-state.js', 'checklist', manifest,
-                  ], { encoding: 'utf8' }));
-
-                  if (!result.passed) {
-                    incompleteChecklists += 1;
-                    for (const item of result.checklist.unchecked) {
-                      annotations.push({
-                        path: manifest.replace(process.cwd() + '/', ''),
-                        start_line: 1,
-                        end_line: 1,
-                        annotation_level: 'warning',
-                        message: `Unchecked: ${item}`,
-                        title: 'Quality checklist',
-                      });
-                    }
-                  }
-                } catch (e) {
-                  // checklist command exits 1 on incomplete — that's expected
-                }
-              }
-            }
-
-            const conclusion = incompleteChecklists > 0 ? 'neutral' : 'success';
-            const title = incompleteChecklists > 0
-              ? `${incompleteChecklists} plan(s) with incomplete checklists`
-              : foundChecklists > 0
-                ? `All ${foundChecklists} checklist(s) complete`
-                : 'No checklists found';
-
-            const summary = incompleteChecklists > 0
-              ? [
-                  '**Quality checklist advisory**',
-                  '',
-                  `${incompleteChecklists} plan(s) have incomplete quality checklists.`,
-                  'All checklist items should be verified before marking the plan as ready.',
-                  '',
-                  'Run `node bin/sync-state.js checklist <manifest-path>` to check.',
-                ].join('\n')
-              : foundChecklists > 0
-                ? `All ${foundChecklists} plan checklists are fully verified.`
-                : 'No plan manifests with checklists were found in this branch.';
-
-            await github.rest.checks.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'Guardrails: Quality Checklist',
-              head_sha: context.payload.pull_request.head.sha,
-              status: 'completed',
-              conclusion,
-              output: { title, summary, annotations: annotations.slice(0, 50) },
-            });
+            const workflow = require('./bin/workflow-scripts/guardrails');
+            return await workflow.checkQualityChecklist({ github, context });

@@ -24,6 +24,7 @@ Each managed repo is a git submodule under `repos/`.
 | `contracts/` | Cross-service interface specs (API schemas, event definitions) |
 | `architectural-schemas/` | System-level topology diagrams |
 | `bin/` | Hub CLI commands (coordination, not build/test) |
+| `bin/workflow-scripts/` | Extracted GitHub Actions logic and shared workflow helpers |
 
 ---
 
@@ -152,6 +153,7 @@ Common repo-level commands: `build`, `test`, `lint`, `verify`, `branch`, `pr:dra
 6. **Source code is the source of truth.** If code contradicts a spec, code wins.
 7. **No code without an approved plan.** Use the Quick Fix track only for trivial (1-3 file) changes.
 8. **Guardrails advise, humans decide.** All automated checks (branch naming, cross-references, blast radius, verification) are advisory. They never block merges.
+9. **Keep YAML thin.** If a workflow step contains parsing, branching, validation, or repeated logic, move it into `bin/workflow-scripts/` or `bin/sync-state/` and cover it with tests.
 
 ---
 
