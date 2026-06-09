@@ -1,0 +1,6 @@
+[submodule "repos/sdd-test-api"]
+	path = repos/sdd-test-api
+	url = https://github.com/ecarrizo2/sdd-test-api.git
+[submodule "repos/sdd-test-frontend"]
+	path = repos/sdd-test-frontend
+	url = https://github.com/ecarrizo2/sdd-test-frontend.git
