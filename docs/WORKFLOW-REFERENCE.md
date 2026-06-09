@@ -23,6 +23,8 @@ The workflows are intentionally thin. Business logic lives in `bin/workflow-scri
 
 ## Required Setup
 
+For a step-by-step runbook, see `docs/FIRST-TIME-SETUP.md`.
+
 ### Hub Repo
 
 | Secret/Variable | Required | Purpose |

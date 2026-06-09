@@ -78,6 +78,7 @@ Use Prompt 5 (`5-create-epic.md`) to define your first cross-repo epic.
 2. Keep GitHub Actions YAML thin — it should wire inputs, not hold business logic.
 3. Use `docs/WORKFLOW-REFERENCE.md` when you need lifecycle or recovery details.
 4. Use `docs/BEST-PRACTICES.md` when deciding whether code belongs in YAML or a module.
+5. Use `docs/FIRST-TIME-SETUP.md` when you need the exact `gh` commands for secrets and variables.
 
 ## Repository Structure
 
