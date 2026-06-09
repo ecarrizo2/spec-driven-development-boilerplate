@@ -1,0 +1,15 @@
+---
+task_id: 2
+task_name: Create a minimal React dashboard that greets the API name
+epic_id: 2
+target_repo: sdd-test-frontend
+status: draft
+---
+
+# Task 2: Create a minimal React dashboard that greets the API name
+
+## Overview
+Implementation plan for task 2 from epic 2.
+
+## Request
+See specification.md for details.
