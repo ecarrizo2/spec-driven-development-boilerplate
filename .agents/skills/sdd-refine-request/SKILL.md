@@ -44,6 +44,7 @@ Before your first response, silently read:
 9. **Relevant source code** — read the files/modules this task will touch
 10. **Predecessor outputs** — if dependencies exist, check `plans/` for their results
 11. **Status reference** — `user-development/STATUS-REFERENCE.md`
+12. **Figma designs** — if `figma_links:` in the request shell is non-empty, use Figma MCP (if available) to fetch each linked design and read the relevant frames before Phase 1.
 
 ---
 
@@ -66,6 +67,7 @@ Ask implementation-focused questions in batches of 3-5:
 | Code reuse | "Existing helper does 70%. Reuse and extend, or write fresh?" |
 | Testing strategy | "No tests exist. Add for existing behavior first, or only new?" |
 | API checkpoint | "This changes the response shape. Should this stage pause for API verification?" |
+| Visual spec | "I see `figma_links` is empty — are there Figma designs? Paste the URL and I'll fetch them to sharpen the ACs." |
 | Error handling | "If API returns unexpected data — fail silently or throw?" |
 | Complexity estimate | "I estimate this as Fibonacci 5. Does that match your sense?" |
 | Acceptance criteria | "I'm thinking these scenarios define 'done' — anything missing?" |
@@ -130,6 +132,7 @@ When refining the Implementation Details section, apply this quality bar:
    - `complexity: <fibonacci>`
    - `api_checkpoint: <true/false>`
    - `last_updated: <today>`
+   - `figma_links:` — populate from any Figma URLs gathered during refinement; leave `[]` if none
 4. **Include ALL sections with full content:**
    - **Goal** — clear end-state description
    - **Context** — current state, what changes, how it fits the epic

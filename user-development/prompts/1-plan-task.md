@@ -22,13 +22,15 @@
 1. **Agent specs** — all files in `agent-development/agent-specs/`
 2. **Team config** — `config/teams.yaml`
 3. **The task request** — the file specified above (including YAML frontmatter)
-4. **Plan templates** — `agent-development/plans/_templates/manifest.yaml`, `specification.md`, `stage.md`
-5. **Structural planning principles** — `common-specs/structural-planning-principles.md`
-6. **Planning examples** — `agent-development/plans/_templates/EXAMPLES.md` (before/after transformations)
-7. **Status reference** — `user-development/STATUS-REFERENCE.md`
-8. **Relevant source code** — files/modules implied by the request's Implementation Details
-9. **If part of an epic:** the epic's `epic.md`, `task-graph.md`, and `delivery.yaml`
-10. **Past metrics (if available):** check `metrics/thunders/cycles/` for patterns from previous epics
+4. **Figma designs** — if `figma_links:` in the request frontmatter is non-empty, use Figma MCP (if available) to fetch each linked design. Note component names, frame layout, and visual specs relevant to the plan. If MCP is unavailable, record the URLs in the plan's Reference Documents and add a note: "Verify Figma designs before execution."
+5. **Plan templates** — `agent-development/plans/_templates/manifest.yaml`, `specification.md`, `stage.md`
+6. **Structural planning principles** — `common-specs/structural-planning-principles.md`
+7. **Planning examples** — `agent-development/plans/_templates/EXAMPLES.md` (before/after transformations)
+8. **Status reference** — `user-development/STATUS-REFERENCE.md`
+9. **Sync the target repo** — identify `target_repo` from the request frontmatter and run `bin/dev repo:sync <target_repo>`. This advances the submodule at `repos/<target_repo>/` to the latest commit on its default branch before reading any source code.
+10. **Relevant source code** — files/modules implied by the request's Implementation Details (read from the now-synced `repos/<target_repo>/`)
+11. **If part of an epic:** the epic's `epic.md`, `task-graph.md`, and `delivery.yaml`
+12. **Past metrics (if available):** check `metrics/thunders/cycles/` for patterns from previous epics
 
 ---
 
@@ -192,9 +194,33 @@ This rule applies to ALL repos — whether they use their own `sdd/` + `architec
 
 ---
 
+## Open Questions Quality Filter
+
+Before writing any question in `specification.md`, apply this self-filter:
+
+| Check | If yes → |
+|---|---|
+| Can I answer it by reading the code and following established patterns? | Answer it. Record under **Decisions Made During Planning** |
+| Is it already answered in the request document? | Record the answer under **Decisions Made During Planning** |
+| Is it a standard engineering judgment call? | Make the call. Record under **Decisions Made During Planning** |
+| Does it require human business/product/architectural authority? | ✅ Write it as an Open Question |
+
+**Format rules:**
+- Always Q1/Q2/Q3 heading structure — NEVER a table
+- `Agent's recommendation:` is **required** — "No preference" is not acceptable; form one from the code
+- Aim for **1–3 questions**; more than 3 suggests the request needs further refinement first
+
+Use two sections in `specification.md`:
+- **Decisions Made During Planning** — bullets recording what the agent resolved autonomously
+- **Open Questions** — only questions requiring human input before execution
+
+---
+
 ## Output
 
-**Self-check:** Before creating the branch, review your stage files against the "Self-Check Before Committing" questions above. Revise any over-coded sections to be structural (signatures + AST verbs).
+**Self-checks before committing:**
+1. **Structural:** Review your stage files against the "Self-Check Before Committing" questions above. Revise any over-coded sections to be structural (signatures + AST verbs).
+2. **Open Questions:** Review your questions against the quality filter above. Move any self-answerable questions to "Decisions Made During Planning".
 
 Write all plan files directly. Then:
 
@@ -204,5 +230,12 @@ Write all plan files directly. Then:
    ```bash
    gh pr create --draft --title "plan: <ticket-id> <short-description>" --body "Plan for review. See specification.md for details."
    ```
-4. **Remind me:**
-> "Draft PR is open at `<pr-url>`. Review `specification.md`, resolve any `PENDING` questions by editing the files directly or commenting on the PR, then set `manifest.yaml` → `approval.status: approved` when ready to execute."
+4. **Update statuses** — after the PR is opened, in a single commit:
+   - Request file: `status: planned` (from `activated`)
+     - Epic task → `epics/<epic>/requests/<N>-name.md`
+     - Standalone → `agent-development/requests/<N>-name.md`
+   - If epic task: `task-graph.md` → this task's status: `planned` (from `activated`)
+   - If epic task: `delivery.yaml` → this node's `status: draft-pr`
+   - Commit: `plan(status): request planned, draft PR opened [<ticket-id>]` and push
+5. **Remind me:**
+> "Draft PR is open at `<pr-url>`. Review `specification.md`, resolve any `PENDING` questions by editing the files directly or commenting on the PR, then approve with `sdd-approve-plan` when ready to execute."

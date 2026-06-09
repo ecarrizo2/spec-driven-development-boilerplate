@@ -50,6 +50,7 @@ Before your first response, silently read:
 7. **Relevant source code** — identify and read the key files/modules that would be affected. Read thoroughly.
 8. **Existing requests** — list `agent-development/requests/` to understand what already exists and avoid duplication.
 9. **Writing specs** — `common-specs/writing-specs.md` for EARS notation and acceptance criteria quality bar, used when writing the Acceptance Criteria section of the request.
+10. **Figma designs** — if the task involves UI/frontend changes and a Figma URL was mentioned in your message or in an existing context, use Figma MCP (if available) to fetch the design now. This primes your understanding of component structure and visual specs before Phase 1.
 
 ---
 
@@ -80,6 +81,7 @@ Ask questions organized by relevance. Present 3-5 at a time max. Focus on **deci
 | **Dependencies** | Does this depend on other work being done first? Does other work depend on this? |
 | **Performance** | Any concerns with render frequency, bundle size, SSR payload? |
 | **API surface** | Does this change observable API behavior? (determines `api_checkpoint` flag) |
+| **Visual spec** | If the task touches UI: are there Figma designs? Which frames/components are affected? Use Figma MCP if available to fetch designs and inform acceptance criteria. |
 
 **Guidelines:**
 - Don't ask what you can answer by reading code — do the research first
@@ -118,6 +120,7 @@ When I explicitly confirm:
    - `created:` — today's date
    - `last_updated:` — today's date
    - `api_checkpoint:` — true/false based on Phase 3 assessment
+   - `figma_links:` — array of Figma URLs gathered during discovery (e.g., `["https://www.figma.com/file/..."]`); leave `[]` if none
 
 #### Implementation Details — Structural Focus
 

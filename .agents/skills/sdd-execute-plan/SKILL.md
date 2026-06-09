@@ -69,6 +69,12 @@ Pre-Flight Checks 4–6 below run **from within `repos/<repo-name>/`**.
 
 ## Execution Protocol
 
+**Before the first stage — mark execution started:**
+- `manifest.yaml` → `plan_metadata.status: in-progress`
+- If epic task: `task-graph.md` → this task's status: `in-progress` (from `approved`)
+- If epic task: `delivery.yaml` → this node's `status: in-progress`
+- Commit: `plan(status): execution started [<ticket-id>]` and push
+
 For each stage:
 
 1. **Read** the stage instruction file

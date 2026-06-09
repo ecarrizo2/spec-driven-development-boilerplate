@@ -96,28 +96,49 @@ Update human-facing documentation to reflect changes introduced by this plan.
 
 ---
 
-## Open Questions & Decisions
+## Decisions Made During Planning
 
 <!--
-  MANDATORY SECTION. Captures ambiguities requiring human input before execution.
-  
-  During APPROVAL: the human reviewer reads each question, writes their decision
-  inline (replacing PENDING), and sets frontmatter approval.status to "approved".
-  
-  The executing agent verifies no PENDING markers remain before starting.
+  The agent resolved these by reading the code or following established patterns.
+  Record them so reviewers can audit the reasoning without blocking execution.
+  Format: one bullet per decision — title, how it was resolved, brief rationale.
+-->
+
+- **[Decision title]:** Resolved by reading `path/to/file` → chose [approach] because [reason].
+
+---
+
+## Open Questions
+
+<!--
+  MANDATORY SECTION. Only questions that genuinely require human input before execution.
+
+  Self-filter — do NOT write a question if any of these apply:
+  ✗ I can answer it by reading the code and following established patterns → Decisions Made
+  ✗ It is already answered in the request document → Decisions Made
+  ✗ It is a standard engineering judgment call I can make → Decisions Made
+
+  Format rules:
+  - Always use Q1/Q2/Q3 heading structure — NEVER a table
+  - Agent's recommendation is REQUIRED; "No preference" is not acceptable — form one from the code
+  - Aim for 1–3 questions; more than 3 suggests the request needs further refinement
+
+  During APPROVAL: the human writes their decision inline (replacing PENDING) and sets
+  manifest.yaml → approval.status to "approved". The executing agent verifies no PENDING remain.
+
   If there are genuinely no open questions, write:
-  "None — this plan is fully self-contained." and explain briefly why.
+  "None — all decisions resolved during planning (see Decisions Made above)."
 -->
 
 ### Q1: <Short question title>
 
-**Context:** <!-- Why this matters, what trade-offs exist -->
+**Context:** <!-- Why this matters and what trade-offs are at stake -->
 
 **Options:**
 - **A)** ...
 - **B)** ...
 
-**Agent's recommendation:** <!-- Which option and why, or "No recommendation" -->
+**Agent's recommendation:** <!-- Required — which option and why, based on the code. -->
 
 **Human decision:** `PENDING`
 

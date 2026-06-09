@@ -175,6 +175,7 @@ Skills are invoked naturally in Zed and Claude Code — describe what you want a
 |-------|-------------|------|
 | `sdd-bootstrap-hub` | Initialize hub context — generate overview docs, commands config, and fallback-sdd structures for registered repos | Coordination |
 | `sdd-plan-task` | Create an implementation plan from an activated task request — produces `manifest.yaml`, `specification.md`, and stage files | Execution |
+| `sdd-approve-plan` | Stamp a plan as approved — verifies no PENDING markers remain, sets approval fields in manifest.yaml, and transitions task-graph status | Execution |
 | `sdd-execute-plan` | Execute an approved plan — creates branch, opens draft PR, runs stages with verification checkpoints | Execution |
 | `sdd-create-request` | Interactive technical discovery → write a standalone task request (no epic needed) | Coordination |
 | `sdd-quick-fix` | Implement a small, obvious change (1–3 files, no design decisions) without a full plan | Execution |
