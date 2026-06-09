@@ -1,0 +1,175 @@
+name: Replay Missed Dispatch
+
+on:
+  workflow_dispatch:
+    inputs:
+      epic_id:
+        required: true
+        type: string
+        description: 'Epic ID to replay'
+      task_id:
+        required: true
+        type: string
+        description: 'Task ID to replay'
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout hub
+        uses: actions/checkout@v4
+
+      - name: Replay task dispatch
+        uses: actions/github-script@v7
+        env:
+          EPIC_ID: ${{ inputs.epic_id }}
+          TASK_ID: ${{ inputs.task_id }}
+          HUB_INTEGRITY_SECRET: ${{ secrets.HUB_INTEGRITY_SECRET }}
+        with:
+          github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { generateCorrelationId, generateIntegrityToken, auditWorkflowStart, auditWorkflowEnd } = require(path.join(process.cwd(), 'bin/sync-state/audit'));
+            const { resolveEpicDirectory, resolvePlanManifest } = require(path.join(process.cwd(), 'bin/sync-state/epic-resolver'));
+            const { readTaskGraphTasks } = require(path.join(process.cwd(), 'bin/sync-state/task-graph'));
+
+            const epicId = process.env.EPIC_ID || '';
+            const taskId = process.env.TASK_ID || '';
+            const projectRoot = process.cwd();
+
+            if (!epicId || !taskId) {
+              throw new Error('Both epic_id and task_id are required.');
+            }
+
+            const correlationId = generateCorrelationId();
+            auditWorkflowStart({
+              correlation_id: correlationId,
+              source: 'replay-dispatch',
+              epic_id: epicId,
+              task_id: taskId,
+              repository: context.repo.owner + '/' + context.repo.repo,
+            });
+
+            function parseRepoFullName(repoKey) {
+              const text = fs.readFileSync(path.join(projectRoot, 'config', 'repos.yaml'), 'utf8');
+              const lines = text.split(/\r?\n/);
+              const escapedKey = repoKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const repoLine = new RegExp(`^\\s{2,}${escapedKey}:\\s*$`);
+              let inRepo = false;
+
+              for (const line of lines) {
+                if (!inRepo) {
+                  if (repoLine.test(line)) {
+                    inRepo = true;
+                  }
+                  continue;
+                }
+
+                if (/^\S/.test(line)) {
+                  break;
+                }
+
+                const match = line.match(/git_url:\s*["']?([^"']+)["']?/);
+                if (match) {
+                  const repoMatch = match[1].match(/github\.com[/:](.+?)(?:\.git)?$/);
+                  return repoMatch ? repoMatch[1] : null;
+                }
+              }
+
+              return null;
+            }
+
+            function slugify(value) {
+              return String(value || '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+            }
+
+            const epicDir = resolveEpicDirectory(projectRoot, epicId);
+            if (!epicDir) {
+              throw new Error(`Unable to resolve epic directory for epic ${epicId}.`);
+            }
+
+            const taskGraphPath = path.join(epicDir, 'task-graph.md');
+            const tasks = readTaskGraphTasks(taskGraphPath);
+            const task = tasks.find((entry) => String(entry.id) === String(taskId));
+            if (!task) {
+              throw new Error(`Unable to find task ${taskId} in ${taskGraphPath}.`);
+            }
+
+            const planManifest = resolvePlanManifest(projectRoot, epicId, taskId);
+            if (!planManifest) {
+              throw new Error(`Unable to resolve merged plan manifest for epic ${epicId} task ${taskId}.`);
+            }
+
+            const planDir = path.dirname(planManifest);
+            const taskSlug = slugify(task.title || `task-${taskId}`);
+            const planBranch = `plan/${taskId}_${taskSlug}`;
+            const branchTypesMatch = fs.readFileSync(path.join(projectRoot, 'config', 'teams.yaml'), 'utf8').match(/branch_types:\s*\[(.*?)\]/);
+            const branchType = branchTypesMatch
+              ? (branchTypesMatch[1].split(',').map((part) => part.trim().replace(/['"]/g, ''))[0] || 'feat')
+              : 'feat';
+            const executionBranch = `${branchType}/${taskId}_${taskSlug}`;
+            const targetRepoFullName = parseRepoFullName(String(task.repo || ''));
+            if (!targetRepoFullName) {
+              throw new Error(`Unable to resolve target repo full name for ${task.repo}.`);
+            }
+
+            const planPrList = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              head: `${context.repo.owner}:${planBranch}`,
+              per_page: 20,
+            });
+
+            const mergedPlan = planPrList.data.find((pr) => pr.merged_at);
+            if (!mergedPlan) {
+              throw new Error(`Unable to find merged plan PR for branch ${planBranch}.`);
+            }
+
+            const payload = {
+              epic_id: epicId,
+              task_id: taskId,
+              task_name: task.title || `Task ${taskId}`,
+              hub_repo: context.repo.owner + '/' + context.repo.repo,
+              plan_branch: planBranch,
+              plan_pr_number: String(mergedPlan.number),
+              plan_dir: planDir,
+              execution_branch: executionBranch,
+              correlation_id: correlationId,
+            };
+
+            const secret = process.env.HUB_INTEGRITY_SECRET || '';
+            if (secret) {
+              payload.integrity_token = generateIntegrityToken(secret, payload);
+            }
+
+            const [owner, repo] = targetRepoFullName.split('/');
+            await github.rest.repos.createDispatchEvent({
+              owner,
+              repo,
+              event_type: 'task-assigned',
+              client_payload: payload,
+            });
+
+            auditWorkflowEnd(correlationId, {
+              source: 'replay-dispatch',
+              epic_id: epicId,
+              task_id: taskId,
+              repository: context.repo.owner + '/' + context.repo.repo,
+            });
+
+            core.setOutput('plan_pr_number', String(mergedPlan.number));
+            core.setOutput('target_repo', targetRepoFullName);
+            core.setOutput('execution_branch', executionBranch);
+
+      - name: Summary
+        run: |
+          echo "Replay dispatched for epic ${{ inputs.epic_id }}, task ${{ inputs.task_id }}."

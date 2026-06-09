@@ -1,0 +1,119 @@
+name: Epic Completion Check
+
+on:
+  workflow_call:
+    inputs:
+      epic_id:
+        required: true
+        type: string
+    outputs:
+      complete:
+        description: 'Whether the epic is complete'
+        value: ${{ jobs.check.outputs.complete }}
+      task_count:
+        description: 'Total task count'
+        value: ${{ jobs.check.outputs.task_count }}
+      done_tasks:
+        description: 'Number of done tasks'
+        value: ${{ jobs.check.outputs.done_tasks }}
+
+  workflow_dispatch:
+    inputs:
+      epic_id:
+        required: true
+        type: string
+        description: 'The epic ID to check'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      complete: ${{ steps.completion.outputs.complete }}
+      task_count: ${{ steps.completion.outputs.task_count }}
+      done_tasks: ${{ steps.completion.outputs.done_tasks }}
+
+    steps:
+      - name: Checkout hub
+        uses: actions/checkout@v4
+
+      - name: Check completion
+        id: completion
+        shell: bash
+        env:
+          EPIC_ID: ${{ inputs.epic_id || github.event.inputs.epic_id }}
+        run: |
+          if [ -z "$EPIC_ID" ]; then
+            echo "No epic ID provided."
+            echo "complete=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          RESULT=$(node bin/sync-state.js check-completion "$EPIC_ID" 2>/dev/null || echo '{"complete":false}')
+
+          COMPLETE=$(echo "$RESULT" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(0,'utf8')).complete ? 'true' : 'false')")
+          TASK_COUNT=$(echo "$RESULT" | node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync(0,'utf8')).taskCount || 0))")
+          DONE_TASKS=$(echo "$RESULT" | node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync(0,'utf8')).doneTasks || 0))")
+
+          echo "complete=$COMPLETE" >> "$GITHUB_OUTPUT"
+          echo "task_count=$TASK_COUNT" >> "$GITHUB_OUTPUT"
+          echo "done_tasks=$DONE_TASKS" >> "$GITHUB_OUTPUT"
+
+          echo "Epic $EPIC_ID: $DONE_TASKS / $TASK_COUNT tasks done. Complete: $COMPLETE"
+
+  notify:
+    needs: check
+    if: needs.check.outputs.complete == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout hub
+        uses: actions/checkout@v4
+
+      - name: Comment on epic tracking issues
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const epicId = '${{ inputs.epic_id || github.event.inputs.epic_id }}';
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'epic',
+              state: 'open',
+              per_page: 30,
+            });
+
+            for (const issue of issues.data) {
+              if (issue.title.includes(epicId)) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: [
+                    `Epic ${epicId} appears to be complete.`,
+                    '',
+                    `**Tasks:** ${{ needs.check.outputs.done_tasks }} / ${{ needs.check.outputs.task_count }} done`,
+                    '',
+                    'The epic can be archived:',
+                    '```',
+                    `bin/dev wf:archive ${epicId}`,
+                    '```',
+                  ].join('\n'),
+                });
+                break;
+              }
+            }
+
+      - name: Attempt archive (dry-run first)
+        continue-on-error: true
+        env:
+          EPIC_ID: ${{ inputs.epic_id || github.event.inputs.epic_id }}
+        run: |
+          if [ -n "$EPIC_ID" ]; then
+            "$GITHUB_WORKSPACE"/bin/commands/wf-archive.sh "$EPIC_ID" --dry-run || echo "Dry-run check complete."
+          fi

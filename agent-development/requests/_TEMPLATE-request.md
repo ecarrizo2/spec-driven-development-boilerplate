@@ -9,12 +9,11 @@ complexity: null      # Fibonacci: 1 | 2 | 3 | 5 | 8 | 13
 
 # Multirepo fields
 target_repo: ""       # Which repo this task executes in (must match repos.yaml key)
-hub_epic: ""          # Reference to parent epic folder (e.g., "1-awards-v2")
-discovered_during: null  # Plan ID that surfaced this work (e.g., "3-add-notifications"), or null if planned from the start
+hub_epic: ""          # Reference to parent epic folder (e.g., "1-feature-name")
 
 created: null         # YYYY-MM-DD
 last_updated: null    # YYYY-MM-DD
-figma_links: []       # Figma design URLs — populate during discovery if task touches UI components
+discovered_during: null  # Plan ID that surfaced this work (e.g., "3-add-notifications"), or null if planned from the start
 ---
 
 # Task <N>: <Short Descriptive Title>
@@ -48,16 +47,9 @@ _How does this task relate to work happening in other repos? What interfaces mus
 
 ## Implementation Details
 
-_Guidance for the planning agent — file paths, key symbol names, patterns to follow, edge cases, constraints. This is "what" not "how"._
+_Guidance for the planning agent — file paths, patterns to follow, edge cases, constraints. This is "what" not "how"._
 
-<!-- Include:
-  - Files and modules affected
-  - Key symbols: class/method/interface names the planner will grep for (e.g., "Key symbols: VendorResolver, fetchByVendor")
-  - Signatures and contracts for new or modified APIs
-  - Data flow boundaries (e.g., Resolver -> Service -> DB)
-  - Verification patterns
-  - Constraints and architectural rules
--->
+- ...
 
 ## Deliverables
 

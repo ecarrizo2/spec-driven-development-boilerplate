@@ -15,21 +15,21 @@ repositories:
     submodule_path: "repos/example-api"
 
     branches:
-      main: "main"                   # Primary development branch
-      production: null               # Production branch (null if same as main)
-      staging: null                  # Staging branch (null if no staging branch)
+      main: "main"
+      production: null
+      staging: null
 
     deployment:
-      system: helm                   # helm | serverless | umd | ecs | static | manual
-      pipeline: gha                  # gha | jenkins | circleci | gitlab-ci | manual
+      system: helm
+      pipeline: gha
       pipeline_file: ".github/workflows/deploy.yml"
       environments:
         - name: staging
-          auto_deploy_on: "staging"  # Branch that triggers auto-deploy (null = manual)
+          auto_deploy_on: "staging"
           url: "https://staging-api.example.com"
           requires_approval: false
         - name: production
-          auto_deploy_on: null       # Manual promotion
+          auto_deploy_on: null
           url: "https://api.example.com"
           requires_approval: true
 
@@ -41,7 +41,7 @@ repositories:
       orm: prisma
 
     sdd:
-      has_own_sdd: true              # Does this repo have its own sdd/ directory?
+      has_own_sdd: true
       agent_specs_path: "sdd/agent-development/agent-specs/"
       architecture_docs_path: "architecture-documentation/"
 
@@ -63,18 +63,18 @@ repositories:
       staging: null
 
     deployment:
-      system: static                 # Vercel / Netlify / S3+CloudFront
+      system: static
       pipeline: gha
       pipeline_file: ".github/workflows/deploy.yml"
       environments:
         - name: preview
-          auto_deploy_on: "pr"       # Preview deploys on PR
-          url: null                   # Dynamic per PR
+          auto_deploy_on: "pr"
+          url: null
           requires_approval: false
         - name: production
           auto_deploy_on: "main"
           url: "https://app.example.com"
-          requires_approval: false
+          requires_approval: true
 
     tech_stack:
       language: typescript
@@ -82,7 +82,7 @@ repositories:
       package_manager: pnpm
 
     sdd:
-      has_own_sdd: false             # No SDD in this repo — uses hub's fallback-sdd/
+      has_own_sdd: false
       agent_specs_path: null
       architecture_docs_path: null
 
@@ -98,7 +98,7 @@ repositories:
       production: null
 
     deployment:
-      system: manual                 # terraform apply is manual/CI-gated
+      system: manual
       pipeline: gha
       pipeline_file: ".github/workflows/terraform.yml"
       environments:

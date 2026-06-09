@@ -40,13 +40,11 @@ Before your first response, silently read:
 3. **The request shell** — the file specified in Input above
 4. **Agent specs** — all files in `agent-development/agent-specs/`
 5. **Team config** — `config/teams.yaml`
-6. **Structural planning principles** — `common-specs/structural-planning-principles.md`
-7. **Jira ticket templates** — `config/jira-ticket-templates.md` (hub-level file; canonical for all repos — no repo-level overrides).
-8. **Request template** — `agent-development/requests/_TEMPLATE-request.md`
-9. **Relevant source code** — read the files/modules this task will touch
-10. **Predecessor outputs** — if dependencies exist, check `plans/` for their results
-11. **Status reference** — `user-development/STATUS-REFERENCE.md`
-12. **Figma designs** — if `figma_links:` in the request shell is non-empty, use Figma MCP (if available) to fetch each linked design and read the relevant frames before Phase 1.
+6. **Jira ticket templates** — `config/jira-ticket-templates.md` (hub-level file; canonical for all repos — no repo-level overrides).
+7. **Request template** — `agent-development/requests/_TEMPLATE-request.md`
+8. **Relevant source code** — read the files/modules this task will touch
+9. **Predecessor outputs** — if dependencies exist, check `plans/` for their results
+10. **Status reference** — `user-development/STATUS-REFERENCE.md`
 
 ---
 
@@ -69,7 +67,6 @@ Ask implementation-focused questions in batches of 3-5:
 | Code reuse | "Existing helper does 70%. Reuse and extend, or write fresh?" |
 | Testing strategy | "No tests exist. Add for existing behavior first, or only new?" |
 | API checkpoint | "This changes the response shape. Should this stage pause for API verification?" |
-| Visual spec | "I see `figma_links` is empty — are there Figma designs? Paste the URL and I'll fetch them to sharpen the ACs." |
 | Error handling | "If API returns unexpected data — fail silently or throw?" |
 | Complexity estimate | "I estimate this as Fibonacci 5. Does that match your sense?" |
 | Acceptance criteria | "I'm thinking these scenarios define 'done' — anything missing?" |
@@ -97,34 +94,6 @@ Before writing, summarize:
 
 Ask: "Does this scope look right? Should I write the request?"
 
----
-
-### Implementation Details Quality Bar
-
-When refining the Implementation Details section, apply this quality bar:
-
-| Dimension | Good (Structural) | Bad (Over-Specified) |
-|---|---|---|
-| **Scope** | Lists affected files/modules and their boundaries | Lists step-by-step procedures |
-| **Contracts** | Defines signatures, interfaces, schemas | Includes internal variable names and logic flow |
-| **Symbols** | Names the key classes, methods, and interfaces the planner will grep for (e.g., `VendorResolver`, `fetchByVendor`) | Omits identifiers, forcing the planner to grep blindly |
-| **Verification** | Describes how to test the change (commands, queries) | Describes what the code should do internally |
-| **Data flow** | Maps boundaries (Resolver → Service → DB) | Details loops, filters, calculations |
-| **Constraints** | Notes architectural rules (e.g., no business logic in resolvers) | Prescribes exact implementation approach |
-
-**Why this matters:**
-- Implementation Details feed directly into the planning agent
-- Over-specification causes plan-phase over-coding (token waste, brittleness)
-- Structural focus lets the planning agent make informed decisions without being over-constrained
-
-**During refinement:**
-- If the Implementation Details section reads like a step-by-step tutorial → revise to focus on contracts and boundaries
-- If it includes conditionals, loops, or calculations → extract the architectural intent and omit the implementation details
-- If it doesn't identify verification patterns → add them (verification commands, expected responses)
-- If it doesn't name the key symbols (classes, methods, interfaces) → add a **Key symbols** line so the planning agent has precise grep targets
-
----
-
 ### Phase 5: Write (only when I say so)
 
 1. **Overwrite the request shell** at `epics/<N-epic-name>/requests/<N-task.md>`
@@ -134,7 +103,6 @@ When refining the Implementation Details section, apply this quality bar:
    - `complexity: <fibonacci>`
    - `api_checkpoint: <true/false>`
    - `last_updated: <today>`
-   - `figma_links:` — populate from any Figma URLs gathered during refinement; leave `[]` if none
 4. **Include ALL sections with full content:**
    - **Goal** — clear end-state description
    - **Context** — current state, what changes, how it fits the epic
