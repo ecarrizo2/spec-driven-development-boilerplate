@@ -29,125 +29,11 @@ jobs:
       - name: Deterministic pre-check
         id: precheck
         uses: actions/github-script@v7
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
-            const path = require('path');
-            const { execFileSync } = require('child_process');
-
-            const payload = context.payload.client_payload || {};
-            const childRepoFull = payload.repository || payload.repo || payload.target_repo_full_name;
-            if (!childRepoFull || !payload.pr_number) {
-              core.setOutput('skip', 'true');
-              core.setOutput('reason', 'Missing repository or pr_number in payload.');
-              return;
-            }
-
-            const [childOwner, childRepo] = childRepoFull.split('/');
-            const prNumber = Number(payload.pr_number);
-            const epicId = String(payload.epic_id || '');
-            const taskId = String(payload.task_id || '');
-
-            core.setOutput('child_owner', childOwner);
-            core.setOutput('child_repo', childRepo);
-            core.setOutput('pr_number', String(prNumber));
-            core.setOutput('epic_id', epicId);
-            core.setOutput('task_id', taskId);
-
-            const files = await github.paginate(github.rest.pulls.listFiles, {
-              owner: childOwner,
-              repo: childRepo,
-              pull_number: prNumber,
-              per_page: 100,
-            });
-
-            const changedFiles = files.map(f => f.filename);
-            const totalChanges = changedFiles.length;
-            const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0);
-            const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0);
-
-            core.setOutput('changed_file_count', String(totalChanges));
-            core.setOutput('total_additions', String(totalAdditions));
-            core.setOutput('total_deletions', String(totalDeletions));
-
-            if (totalChanges === 0) {
-              core.setOutput('skip', 'true');
-              core.setOutput('reason', 'No files changed. Skipping verification.');
-              return;
-            }
-
-            const isConfigOnly = changedFiles.every(f =>
-              f.endsWith('.yml') || f.endsWith('.yaml') || f.endsWith('.json') ||
-              f.endsWith('.md') || f.startsWith('.github/') || f.startsWith('.sdd/') ||
-              f === '.gitignore'
-            );
-
-            if (isConfigOnly && totalAdditions < 50) {
-              core.setOutput('skip', 'true');
-              core.setOutput('reason', 'Configuration-only change. Skipping AI verification.');
-              core.setOutput('config_only', 'true');
-              return;
-            }
-
-            core.setOutput('skip', 'false');
-
-            let planDir = '';
-            try {
-              planDir = execFileSync('node', [
-                'bin/sync-state.js', 'find-plan', epicId, taskId,
-              ], { encoding: 'utf8', timeout: 15000 }).trim();
-            } catch (e) {
-              planDir = '';
-            }
-
-            if (!planDir) {
-              core.setOutput('skip', 'true');
-              core.setOutput('reason', 'No plan manifest found for this task. Skipping AI verification.');
-              return;
-            }
-
-            const planManifest = path.join(planDir, 'manifest.yaml');
-            core.setOutput('plan_manifest', planManifest);
-
-            if (fs.existsSync(planManifest)) {
-              const manifestText = fs.readFileSync(planManifest, 'utf8');
-              const stageFiles = [];
-              for (const line of manifestText.split('\n')) {
-                const match = line.match(/instruction_file:\s*"([^"]+)"/);
-                if (match) {
-                  stageFiles.push(path.join(planDir, match[1]));
-                }
-              }
-
-              const declaredFiles = [];
-              for (const line of manifestText.split('\n')) {
-                const match = line.match(/context_files:\s*\[(.*?)\]/);
-                if (match) {
-                  const files = match[1].split(',').map(s => s.trim().replace(/['"]/g, ''));
-                  declaredFiles.push(...files);
-                }
-                const writeMatch = line.match(/output_files:\s*\[(.*?)\]/);
-                if (writeMatch) {
-                  const files = writeMatch[1].split(',').map(s => s.trim().replace(/['"]/g, ''));
-                  declaredFiles.push(...files);
-                }
-              }
-
-              const normalizedDeclared = [...new Set(declaredFiles.map(f => f.replace(/^\//, '')))];
-              const unexpected = changedFiles.filter(f => {
-                const norm = f.replace(/^\//, '');
-                return !normalizedDeclared.some(d => norm.includes(d) || d.includes(norm));
-              });
-
-              if (unexpected.length > 0 && normalizedDeclared.length > 0) {
-                core.setOutput('blast_radius_issue', 'true');
-                core.setOutput('unexpected_files', unexpected.join(', '));
-                core.setOutput('declared_files', normalizedDeclared.join(', '));
-              }
-            }
+            const workflow = require('./bin/workflow-scripts/ai-verification-gate');
+            return await workflow.runPrecheck({ github, context, core });
 
       - name: Post verification skipped comment
         if: steps.precheck.outputs.skip == 'true' && steps.precheck.outputs.config_only != 'true'
@@ -155,295 +41,39 @@ jobs:
         with:
           github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
           script: |
-            const childOwner = '${{ steps.precheck.outputs.child_owner }}';
-            const childRepo = '${{ steps.precheck.outputs.child_repo }}';
-            const prNumber = Number('${{ steps.precheck.outputs.pr_number }}');
-            const reason = '${{ steps.precheck.outputs.reason }}';
-
-            if (!childOwner || !childRepo || !prNumber) return;
-
-            await github.rest.issues.createComment({
-              owner: childOwner,
-              repo: childRepo,
-              issue_number: prNumber,
-              body: [
-                'Verification skipped.',
-                '',
-                `**Reason:** ${reason || 'Insufficient context for AI verification.'}`,
-              ].join('\n'),
+            const workflow = require('./bin/workflow-scripts/ai-verification-gate');
+            return await workflow.postSkipComment({
+              github, core,
+              inputs: {
+                childOwner: '${{ steps.precheck.outputs.child_owner }}',
+                childRepo: '${{ steps.precheck.outputs.child_repo }}',
+                prNumber: '${{ steps.precheck.outputs.pr_number }}',
+                reason: '${{ steps.precheck.outputs.reason }}',
+              },
             });
 
       - name: AI verification
         id: ai-verify
         if: steps.precheck.outputs.skip != 'true'
-        uses: actions/github-script@v7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_MODELS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
           script: |
-            const fs = require('fs');
-            const path = require('path');
-            const { readText, splitMarkdownFrontmatter } = require(path.join(process.cwd(), 'bin/sync-state/_common'));
-
-            const childOwner = '${{ steps.precheck.outputs.child_owner }}';
-            const childRepo = '${{ steps.precheck.outputs.child_repo }}';
-            const prNumber = Number('${{ steps.precheck.outputs.pr_number }}');
-            const epicId = '${{ steps.precheck.outputs.epic_id }}';
-            const taskId = '${{ steps.precheck.outputs.task_id }}';
-            const planManifest = '${{ steps.precheck.outputs.plan_manifest }}';
-
-            function bodyOnly(filePath) {
-              if (!fs.existsSync(filePath)) return '';
-              const text = readText(filePath);
-              const split = splitMarkdownFrontmatter(text);
-              return split.bodyLines.join('\n').trim();
-            }
-
-            let epicDir = '';
-            try {
-              const { execFileSync } = require('child_process');
-              epicDir = execFileSync('node', [
-                'bin/sync-state.js', 'find-epic', epicId,
-              ], { encoding: 'utf8', timeout: 10000 }).trim();
-            } catch (e) {}
-
-            const epicFile = epicDir ? path.join(epicDir, 'epic.md') : '';
-            const taskGraphPath = epicDir ? path.join(epicDir, 'task-graph.md') : '';
-            const planSpec = planManifest ? path.join(path.dirname(planManifest), 'specification.md') : '';
-
-            const maxChars = Number(process.env.MAX_CONTEXT_CHARS) || 8000;
-
-            const epicText = epicFile ? bodyOnly(epicFile).slice(0, maxChars) : '';
-            const taskGraphText = taskGraphPath ? bodyOnly(taskGraphPath).slice(0, maxChars) : '';
-            const planManifestText = planManifest && fs.existsSync(planManifest) ? readText(planManifest).slice(0, maxChars) : '';
-            const planSpecText = planSpec && fs.existsSync(planSpec) ? readText(planSpec).slice(0, maxChars) : '';
-
-            const pr = await github.rest.pulls.get({
-              owner: childOwner,
-              repo: childRepo,
-              pull_number: prNumber,
+            const workflow = require('./bin/workflow-scripts/ai-verification-gate');
+            return await workflow.runAiVerification({
+              github, context, core,
+              inputs: {
+                childOwner: '${{ steps.precheck.outputs.child_owner }}',
+                childRepo: '${{ steps.precheck.outputs.child_repo }}',
+                prNumber: '${{ steps.precheck.outputs.pr_number }}',
+                epicId: '${{ steps.precheck.outputs.epic_id }}',
+                taskId: '${{ steps.precheck.outputs.task_id }}',
+                planManifest: '${{ steps.precheck.outputs.plan_manifest }}',
+                branch: '${{ steps.precheck.outputs.branch }}',
+                blastRadiusIssue: '${{ steps.precheck.outputs.blast_radius_issue }}',
+                unexpectedFiles: '${{ steps.precheck.outputs.unexpected_files }}',
+                declaredFiles: '${{ steps.precheck.outputs.declared_files }}',
+              },
             });
-
-            const files = await github.paginate(github.rest.pulls.listFiles, {
-              owner: childOwner,
-              repo: childRepo,
-              pull_number: prNumber,
-              per_page: 100,
-            });
-
-            const diffSummary = files.slice(0, 25).map((file) => {
-              const patch = file.patch ? `\n${file.patch.slice(0, 1500)}` : '';
-              return `- ${file.filename} (+${file.additions}/-${file.deletions})${patch}`;
-            }).join('\n\n');
-
-            const blastRadiusIssue = '${{ steps.precheck.outputs.blast_radius_issue }}';
-            const unexpectedFiles = '${{ steps.precheck.outputs.unexpected_files }}';
-            const declaredFiles = '${{ steps.precheck.outputs.declared_files }}';
-
-            const prompt = [
-              'You are an SDD verification gate. Compare the child repo PR diff against the epic and the implementation plan.',
-              'Return strict JSON only with this shape:',
-              '{ "verdict": "aligned" | "off_track", "summary": "1-2 sentence assessment", "deviations": ["..."], "recommended_actions": [...] }',
-              '',
-              `## Epic (${epicId})`,
-              epicText || '(no epic content available)',
-              '',
-              `## Task Graph`,
-              taskGraphText || '(no task graph available)',
-              '',
-              `## Plan Manifest`,
-              planManifestText || '(no manifest available)',
-              '',
-              `## Plan Specification`,
-              planSpecText || '(no specification available)',
-              '',
-              ...(blastRadiusIssue === 'true' ? [
-                '',
-                '## Blast Radius Warning',
-                `Files outside plan scope: ${unexpectedFiles}`,
-                `Declared scope: ${declaredFiles}`,
-                'Check whether the unexpected files are justified additions or scope creep.',
-              ] : []),
-              '',
-              `## Child PR ${childOwner}/${childRepo}#${prNumber}`,
-              `Title: ${pr.data.title}`,
-              `Body: ${(pr.data.body || '').slice(0, 2000)}`,
-              '',
-              '## Changed Files',
-              diffSummary,
-            ].join('\n');
-
-            const MODEL_URL = 'https://models.github.ai/inference/chat/completions';
-            const MODEL_NAME = 'openai/gpt-4o';
-            let verdict = null;
-            let apiError = false;
-
-            for (let attempt = 1; attempt <= 3; attempt++) {
-              try {
-                const response = await fetch(MODEL_URL, {
-                  method: 'POST',
-                  headers: {
-                    Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    model: MODEL_NAME,
-                    messages: [
-                      { role: 'system', content: 'You are a strict implementation reviewer. Respond with valid JSON only.' },
-                      { role: 'user', content: prompt },
-                    ],
-                    temperature: 0.1,
-                    max_tokens: 1400,
-                  }),
-                  signal: AbortSignal.timeout(60000),
-                });
-
-                if (!response.ok) {
-                  throw new Error(`HTTP ${response.status}`);
-                }
-
-                const result = await response.json();
-                const rawContent = result.choices?.[0]?.message?.content || '';
-
-                try {
-                  verdict = JSON.parse(rawContent);
-                } catch (parseErr) {
-                  verdict = {
-                    verdict: 'off_track',
-                    summary: rawContent || 'Model response was not parseable JSON.',
-                    deviations: ['Model response was not valid JSON.'],
-                    recommended_actions: ['Inspect raw model output and rerun verification.'],
-                  };
-                }
-                break;
-              } catch (err) {
-                console.log(`Attempt ${attempt}/3 failed: ${err.message}`);
-                apiError = true;
-                if (attempt < 3) {
-                  const delay = [10000, 30000, 90000][attempt - 1] || 30000;
-                  await new Promise(r => setTimeout(r, delay));
-                }
-              }
-            }
-
-            if (!verdict && apiError) {
-              console.log('All API attempts failed. Skipping verification gracefully.');
-              core.setOutput('api_error', 'true');
-              await github.rest.issues.createComment({
-                owner: childOwner,
-                repo: childRepo,
-                issue_number: prNumber,
-                body: [
-                  'Verification skipped — AI model API unavailable after 3 attempts.',
-                  '',
-                  'The PR was not blocked. A human reviewer should verify alignment manually.',
-                  `**Files changed:** ${{ steps.precheck.outputs.changed_file_count }}`,
-                ].join('\n'),
-              });
-              return;
-            }
-
-            if (!verdict) {
-              verdict = {
-                verdict: 'aligned',
-                summary: 'Verification could not be completed. Passing by default.',
-                deviations: [],
-                recommended_actions: [],
-              };
-            }
-
-            const isAligned = String(verdict.verdict || '').toLowerCase() === 'aligned';
-            const summary = verdict.summary || '';
-            const deviations = Array.isArray(verdict.deviations) ? verdict.deviations : [];
-            const actions = Array.isArray(verdict.recommended_actions) ? verdict.recommended_actions : [];
-
-            const commentLines = [
-              isAligned ? 'Advisory verdict: **aligned with plan**' : 'Advisory verdict: **off track**',
-              '',
-              summary ? `**Summary:** ${summary}` : '',
-            ];
-
-            if (blastRadiusIssue === 'true') {
-              commentLines.push('');
-              commentLines.push('**Blast radius note:** Some changed files are outside the plan\'s declared scope.');
-              commentLines.push(`Declared: ${declaredFiles}`);
-              commentLines.push(`Additional: ${unexpectedFiles}`);
-            }
-
-            if (deviations.length) {
-              commentLines.push('');
-              commentLines.push('**Potential deviations:**');
-              commentLines.push(...deviations.map((d) => `- ${d}`));
-            }
-
-            if (actions.length) {
-              commentLines.push('');
-              commentLines.push('**Suggestions:**');
-              commentLines.push(...actions.map((a) => `- ${a}`));
-            }
-
-            commentLines.push('');
-            commentLines.push('_This is an advisory check. It does not block merging. Human review is the final gate._');
-
-            const commentBody = commentLines.filter(Boolean).join('\n');
-
-            await github.rest.issues.createComment({
-              owner: childOwner,
-              repo: childRepo,
-              issue_number: prNumber,
-              body: commentBody,
-            });
-
-            const { execFileSync } = require('child_process');
-
-            if (isAligned) {
-              execFileSync('node', [
-                'bin/sync-state.js', 'update-task', epicId, taskId, 'in-progress',
-              ], { stdio: 'inherit' });
-              execFileSync('node', [
-                'bin/sync-state.js', 'update-pr', epicId, taskId, 'in-progress',
-                `--pr-url=${pr.data.html_url}`,
-                `--pr-number=${prNumber}`,
-                `--branch=${payload.branch || pr.data.head.ref || ''}`,
-              ], { stdio: 'inherit' });
-            } else {
-              execFileSync('node', [
-                'bin/sync-state.js', 'update-task', epicId, taskId, 'in-progress',
-              ], { stdio: 'inherit' });
-
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: `Advisory: iteration may be needed — task ${taskId} in ${childOwner}/${childRepo}`,
-                body: [
-                  'The AI verification gate flagged potential deviations from the plan.',
-                  '',
-                  `**Child PR:** ${childOwner}/${childRepo}#${prNumber}`,
-                  `**Epic:** ${epicId}  **Task:** ${taskId}`,
-                  '',
-                  '**Model summary:**',
-                  summary || 'No summary returned.',
-                  '',
-                  '**Flagged deviations:**',
-                  ...deviations.map((d) => `- ${d}`),
-                  '',
-                  '**Actions to consider:**',
-                  ...actions.map((a) => `- ${a}`),
-                  '',
-                  '_This is an advisory issue. Close it if the deviations are intentional._',
-                ].join('\n'),
-                labels: ['advisory-iteration'],
-              });
-            }
-
-            if (fs.existsSync(taskGraphPath)) {
-              if (execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim()) {
-                execFileSync('git', ['config', 'user.name', 'github-actions[bot]']);
-                execFileSync('git', ['config', 'user.email', 'github-actions[bot]@users.noreply.github.com']);
-                execFileSync('git', ['add', taskGraphPath]);
-                execFileSync('git', ['commit', '-m', `chore(status): verify task ${taskId}`]);
-                execFileSync('git', ['push', 'origin', `HEAD:${process.env.GITHUB_REF_NAME || 'main'}`]);
-              }
-            }
