@@ -1,0 +1,50 @@
+# Delivery Manifest: Multi-Repo AI Workflow Smoke Test
+
+metadata:
+  epic_id: 1
+  epic_title: "Multi-Repo AI Workflow Smoke Test"
+  branching_strategy: independent
+  strategy_rationale: "Each repo receives its own execution branch; task 2 waits on task 1 dependency."
+  created: 2026-06-09
+  last_updated: 2026-06-09
+
+nodes:
+  - id: "pr-1"
+    task_id: 1
+    repo: "sdd-test-api"
+    title: "feat: validate api dispatch smoke flow"
+    branch: null
+    base: null
+    depends_on: []
+    status: planned
+    pr_url: null
+    pr_number: null
+    deploy_notes: "First node in the smoke chain."
+    how_to_verify: |
+      Confirm task 1 plan merge dispatches to sdd-test-api and opens a draft execution PR.
+    notes: ""
+  - id: "pr-2"
+    task_id: 2
+    repo: "sdd-test-frontend"
+    title: "feat: validate frontend dispatch dependency smoke flow"
+    branch: null
+    base: null
+    depends_on: ["pr-1"]
+    status: planned
+    pr_url: null
+    pr_number: null
+    deploy_notes: "Must follow successful completion and merge of pr-1."
+    how_to_verify: |
+      Confirm task 2 remains blocked until task 1 is done, then dispatches and opens a draft execution PR.
+    notes: ""
+
+merge_order:
+  - group: 1
+    description: "API-first dependency root"
+    nodes: ["pr-1"]
+  - group: 2
+    description: "Frontend after API completion"
+    nodes: ["pr-2"]
+
+negotiation_impacts: []
+incidents: []
