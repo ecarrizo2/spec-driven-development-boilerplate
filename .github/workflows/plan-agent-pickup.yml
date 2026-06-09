@@ -196,8 +196,10 @@ jobs:
                 });
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
-                const raw = data.choices?.[0]?.message?.content || '';
-                parsed = JSON.parse(raw);
+                const raw = String(data.choices?.[0]?.message?.content || '').trim();
+                const fenced = raw.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+                const jsonText = fenced ? fenced[1].trim() : raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+                parsed = JSON.parse(jsonText);
                 break;
               } catch (err) {
                 lastErr = String(err.message || err);
