@@ -4,6 +4,7 @@ const path = require('path');
 describe('Workflow YAML structure validation');
 
 const WORKFLOWS_DIR = path.join(__dirname, '..', '..', '.github', 'workflows');
+const SCRIPTS_DIR = path.join(__dirname, '..', 'workflow-scripts');
 const REQUIRED_WORKFLOWS = [
   'validate.yml', 'guardrails.yml', 'preflight-check.yml',
   'epic-approval.yml', 'plan-execution-trigger.yml',
@@ -102,6 +103,30 @@ it('plan execution uses extracted workflow scripts', () => {
   assertContains(text, 'validatePlanForSafetyGates', 'plan trigger should call extracted validation');
 });
 
+it('epic approval uses extracted workflow scripts', () => {
+  const text = fs.readFileSync(path.join(WORKFLOWS_DIR, 'epic-approval.yml'), 'utf8');
+  assertContains(text, 'bin/workflow-scripts/epic-approval', 'epic approval should require extracted helpers');
+  assertContains(text, 'discoverEpicContext', 'epic approval should call discover helper');
+  assertContains(text, 'createGitHubIssuesAndJiraTickets', 'epic approval should call ticket helper');
+  assertContains(text, 'transitionJiraEpic', 'epic approval should call Jira helper');
+  assert(!text.includes('gh pr merge --squash --auto'), 'epic approval should not auto-merge');
+});
+
+it('receive task uses extracted workflow scripts', () => {
+  const text = fs.readFileSync(path.join(WORKFLOWS_DIR, 'receive-task.yml'), 'utf8');
+  assertContains(text, 'bin/workflow-scripts/receive-task', 'receive-task should require extracted helpers');
+  assertContains(text, 'verifyIntegrityTokenStep', 'receive-task should call integrity helper');
+  assertContains(text, 'synthesizeImplementationWithAI', 'receive-task should call AI synthesis helper');
+});
+
+it('post merge sync uses extracted workflow scripts', () => {
+  const text = fs.readFileSync(path.join(WORKFLOWS_DIR, 'post-merge-sync.yml'), 'utf8');
+  assertContains(text, 'bin/workflow-scripts/post-merge-sync', 'post-merge-sync should require extracted helpers');
+  assertContains(text, 'determinePrTypeAndExtractContext', 'post-merge-sync should call context helper');
+  assertContains(text, 'notifyHubOfExecutionMerge', 'post-merge-sync should call hub notification helper');
+  assertContains(text, 'checkEpicCompletion', 'post-merge-sync should call completion helper');
+});
+
 it('all content:write workflows commit .sdd-audit', () => {
   const files = ['post-merge-sync.yml', 'plan-execution-trigger.yml', 'target-status-events.yml'];
   for (const file of files) {
@@ -119,7 +144,7 @@ it('ai-verification-gate has retry with backoff', () => {
 });
 
 it('epic-approval has deduplication', () => {
-  const text = fs.readFileSync(path.join(WORKFLOWS_DIR, 'epic-approval.yml'), 'utf8');
+  const text = fs.readFileSync(path.join(SCRIPTS_DIR, 'epic-approval.js'), 'utf8');
   assertContains(text, 'alreadyExists', 'should deduplicate tickets');
 });
 
@@ -135,4 +160,9 @@ it('validate workflow uses extracted helper module', () => {
   assertContains(text, 'bin/workflow-scripts/validate', 'validate should require extracted helpers');
   assertContains(text, 'validateYamlAndFrontmatter', 'validate should call extracted validator');
   assertContains(text, 'validateCrossReferencesOnHubPRs', 'validate should call extracted cross-ref helper');
+});
+
+it('target status maps review to in-progress', () => {
+  const text = fs.readFileSync(path.join(WORKFLOWS_DIR, 'target-status-events.yml'), 'utf8');
+  assertContains(text, "'ready-for-review': 'in-progress'", 'ready-for-review should stay in-progress until merge');
 });

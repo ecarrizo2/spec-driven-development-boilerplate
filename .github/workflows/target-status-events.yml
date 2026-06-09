@@ -133,7 +133,7 @@ jobs:
                 'branched': 'in-progress',
                 'draft-pr': 'in-progress',
                 'in-progress': 'in-progress',
-                'ready-for-review': 'done',
+                'ready-for-review': 'in-progress',
                 'merged': 'done',
               };
               const taskMapped = taskStatuses[newStatus] || newStatus;

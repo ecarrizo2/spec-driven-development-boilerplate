@@ -5,6 +5,7 @@
 - Keep `actions/github-script` blocks to orchestration only.
 - Extract parsing, validation, branching, comments, and dispatch logic into `bin/workflow-scripts/`.
 - If code is shared outside workflows, move it into `bin/sync-state/` and test it there.
+- Keep shell steps for shell-only work; if the step is doing real logic, prefer JavaScript.
 - Prefer shared helpers for repeated YAML parsing, repo resolution, audit hooks, and PR metadata extraction.
 - If a new inline block grows beyond a few lines, it probably belongs in a module.
 

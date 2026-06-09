@@ -57,32 +57,20 @@ jobs:
 
       - name: Verify integrity token
         uses: actions/github-script@v7
+        env:
+          RUN_ID: ${{ github.run_id }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const { verifyIntegrityToken, auditWorkflowStart } = require(`${process.env.GITHUB_WORKSPACE}/.sdd-hub/bin/sync-state/audit`);
-            const cid = '${{ github.run_id }}';
-
-            const payload = {};
-            for (const key of Object.keys(context.payload.client_payload || {})) {
-              if (key !== 'integrity_token') {
-                payload[key] = context.payload.client_payload[key];
-              }
-            }
-
-            const token = context.payload.client_payload?.integrity_token || '';
-            const secret = process.env.HUB_INTEGRITY_SECRET || '';
-
-            if (secret && token && !verifyIntegrityToken(secret, token, payload)) {
-              console.warn('Integrity token verification failed. Event may not be from the expected hub.');
-            }
-
-            auditWorkflowStart({
-              correlation_id: cid,
-              source: 'receive-task',
-              epic_id: '${{ inputs.epic_id }}',
-              task_id: '${{ inputs.task_id }}',
-              repository: context.repo.owner + '/' + context.repo.repo,
+            const workflow = require(`${process.env.GITHUB_WORKSPACE}/.sdd-hub/bin/workflow-scripts/receive-task`);
+            return await workflow.verifyIntegrityTokenStep({
+              context,
+              core,
+              inputs: {
+                runId: process.env.RUN_ID,
+                epicId: '${{ inputs.epic_id }}',
+                taskId: '${{ inputs.task_id }}',
+              },
             });
 
       - name: Create execution branch and SDD context file
@@ -136,205 +124,21 @@ jobs:
           TASK_NAME: ${{ inputs.task_name }}
           EXECUTION_BRANCH: ${{ inputs.execution_branch }}
           HUB_CROSS_REPO_TOKEN: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
-        run: |
-          node - <<'NODE'
-          const fs = require('fs');
-          const path = require('path');
-          const { execSync } = require('child_process');
-
-          const hubRoot = path.join(process.env.GITHUB_WORKSPACE, '.sdd-hub');
-          const repoRoot = process.env.GITHUB_WORKSPACE;
-          const epicId = process.env.EPIC_ID || '';
-          const taskId = process.env.TASK_ID || '';
-          const taskName = process.env.TASK_NAME || '';
-          const executionBranch = process.env.EXECUTION_BRANCH || '';
-
-          const { resolvePlanManifest, resolveEpicDirectory, readFrontmatterField } = require(path.join(hubRoot, 'bin/sync-state/epic-resolver'));
-          const { readText, splitMarkdownFrontmatter } = require(path.join(hubRoot, 'bin/sync-state/_common'));
-          const { readTaskGraphTasks } = require(path.join(hubRoot, 'bin/sync-state/task-graph'));
-
-          function bodyOnly(filePath) {
-            if (!filePath || !fs.existsSync(filePath)) return '';
-            const text = readText(filePath);
-            const split = splitMarkdownFrontmatter(text);
-            return split.bodyLines.join('\n').trim();
-          }
-
-          function clip(text, max = 8000) {
-            return String(text || '').slice(0, max);
-          }
-
-          // Resolve plan and epic files from the hub checkout
-          const manifestPath = resolvePlanManifest(hubRoot, epicId, taskId);
-          const planDir = manifestPath ? path.dirname(manifestPath) : null;
-          const epicDir = epicId ? resolveEpicDirectory(hubRoot, epicId) : null;
-
-          let taskTitle = taskName;
-          let requestFile = '';
-          let targetRepo = '';
-          if (epicDir) {
-            const taskGraphPath = path.join(epicDir, 'task-graph.md');
-            if (fs.existsSync(taskGraphPath)) {
-              const tasks = readTaskGraphTasks(taskGraphPath);
-              const task = tasks.find((t) => String(t.id) === String(taskId));
-              if (task) {
-                taskTitle = task.title || taskName;
-                requestFile = task.request_file || '';
-              }
-            }
-          }
-          if (manifestPath) {
-            targetRepo = readFrontmatterField(manifestPath, 'target_repo') || '';
-          }
-
-          const epicText = clip(epicDir ? bodyOnly(path.join(epicDir, 'epic.md')) : '');
-          const taskGraphText = clip(epicDir ? bodyOnly(path.join(epicDir, 'task-graph.md')) : '');
-          const requestText = clip((epicDir && requestFile) ? bodyOnly(path.join(epicDir, 'requests', requestFile)) : '');
-          const specText = clip(planDir ? (fs.existsSync(path.join(planDir, 'specification.md')) ? readText(path.join(planDir, 'specification.md')) : '') : '');
-          const manifestText = clip(manifestPath && fs.existsSync(manifestPath) ? readText(manifestPath) : '');
-
-          // Read the target repo's structure and key files for context
-          let repoStructure = '';
-          try {
-            repoStructure = execSync(
-              'find . -type f -not -path "./.git/*" -not -path "./.sdd-hub/*" -not -path "./node_modules/*" | sort | head -60',
-              { cwd: repoRoot, encoding: 'utf8' }
-            );
-          } catch (_) {}
-
-          let packageJson = '';
-          const pkgPath = path.join(repoRoot, 'package.json');
-          if (fs.existsSync(pkgPath)) {
-            packageJson = clip(readText(pkgPath), 2000);
-          }
-
-          const prompt = [
-            'You are an expert software developer. Implement a task from a Spec-Driven Development (SDD) system.',
-            'Generate complete, working implementation files for the task described below.',
-            '',
-            'Return ONLY strict JSON — no markdown, no explanation, no code fences. Schema:',
-            '{',
-            '  "summary": "one-line description of what was implemented",',
-            '  "files": [',
-            '    { "path": "relative/path/from/repo/root", "content": "complete file content" }',
-            '  ]',
-            '}',
-            '',
-            `Task ID: ${taskId}`,
-            `Task: ${taskTitle}`,
-            `Target Repo: ${targetRepo || 'sdd-test-api'}`,
-            '',
-            '## Epic',
-            epicText || '(none)',
-            '',
-            '## Task Request',
-            requestText || '(none)',
-            '',
-            '## Implementation Plan / Specification',
-            specText || '(none)',
-            '',
-            '## Plan Manifest',
-            manifestText || '(none)',
-            '',
-            '## Existing Repository Structure',
-            repoStructure || '(empty repo)',
-            '',
-            '## package.json',
-            packageJson || '(not found)',
-            '',
-            'Rules:',
-            '- Generate ONLY files needed for this specific task (not the entire app).',
-            '- Use files_to_touch from the manifest as your guide for which files to create/modify.',
-            '- Write complete file contents — not diffs or snippets.',
-            '- Match conventions in existing files (indentation, module style, etc.).',
-            '- If the plan includes verification steps, add the corresponding test file.',
-            '- Do NOT include .sdd/task-context.yaml or .sdd/context.yaml — context already exists.',
-          ].join('\n');
-
-          async function run() {
-            const MODEL_URL = 'https://models.github.ai/inference/chat/completions';
-            const MODEL_NAME = 'openai/gpt-4o';
-            let parsed = null;
-            let lastErr = '';
-
-            for (let attempt = 1; attempt <= 3; attempt += 1) {
-              try {
-                const response = await fetch(MODEL_URL, {
-                  method: 'POST',
-                  headers: {
-                    Authorization: `Bearer ${process.env.HUB_CROSS_REPO_TOKEN}`,
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    model: MODEL_NAME,
-                    messages: [
-                      { role: 'system', content: 'You are an SDD implementation agent. Output JSON only.' },
-                      { role: 'user', content: prompt },
-                    ],
-                    temperature: 0.2,
-                    max_tokens: 4000,
-                  }),
-                  signal: AbortSignal.timeout(120000),
-                });
-                if (!response.ok) {
-                  const body = await response.text().catch(() => '');
-                  throw new Error(`HTTP ${response.status}: ${body.slice(0, 200)}`);
-                }
-                const data = await response.json();
-                const raw = String(data.choices?.[0]?.message?.content || '').trim();
-                const fenced = raw.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-                const jsonText = fenced ? fenced[1].trim() : raw;
-                parsed = JSON.parse(jsonText);
-                break;
-              } catch (err) {
-                lastErr = String(err.message || err);
-                console.error(`Attempt ${attempt} failed: ${lastErr}`);
-                if (attempt < 3) await new Promise((r) => setTimeout(r, [10000, 25000][attempt - 1]));
-              }
-            }
-
-            if (!parsed || !Array.isArray(parsed.files)) {
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `ai_ok=false\nai_summary=AI code synthesis failed: ${lastErr.replace(/\n/g, ' ')}\n`);
-              console.error('AI code synthesis failed — PR will be opened with context file only.');
-              return;
-            }
-
-            // Write generated files
-            let written = 0;
-            for (const file of parsed.files) {
-              if (!file.path || typeof file.content !== 'string') continue;
-              // Safety: prevent path traversal
-              const resolved = path.resolve(repoRoot, file.path);
-              if (!resolved.startsWith(repoRoot + path.sep) && resolved !== repoRoot) continue;
-              fs.mkdirSync(path.dirname(resolved), { recursive: true });
-              fs.writeFileSync(resolved, file.content, 'utf8');
-              written += 1;
-            }
-
-            if (written === 0) {
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `ai_ok=false\nai_summary=AI returned no valid files\n`);
-              return;
-            }
-
-            // Commit implementation
-            execSync('git add -A', { cwd: repoRoot, stdio: 'inherit' });
-            const changedOutput = execSync('git diff --cached --name-only', { cwd: repoRoot, encoding: 'utf8' });
-            if (changedOutput.trim()) {
-              execSync(`git commit -m "feat(sdd): AI-generated implementation for task ${taskId}"`, { cwd: repoRoot, stdio: 'inherit' });
-              execSync(`git push origin HEAD:"${executionBranch}"`, { cwd: repoRoot, stdio: 'inherit' });
-            }
-
-            const summary = String(parsed.summary || `${written} file(s) generated`).replace(/\n/g, ' ');
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `ai_ok=true\nai_summary=${summary}\n`);
-            console.log(`AI synthesis completed: ${summary}`);
-          }
-
-          run().catch((err) => {
-            fs.appendFileSync(process.env.GITHUB_OUTPUT || '/dev/null', `ai_ok=false\nai_summary=AI synthesis crashed: ${String(err.message || err).replace(/\n/g, ' ')}\n`);
-            console.error('AI synthesis crashed:', err);
-          });
-          NODE
-
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const workflow = require(`${process.env.GITHUB_WORKSPACE}/.sdd-hub/bin/workflow-scripts/receive-task`);
+            return await workflow.synthesizeImplementationWithAI({
+              context,
+              core,
+              inputs: {
+                epicId: process.env.EPIC_ID,
+                taskId: process.env.TASK_ID,
+                taskName: process.env.TASK_NAME,
+                executionBranch: process.env.EXECUTION_BRANCH,
+              },
+            });
       - name: Open draft PR
         id: open-pr
         uses: actions/github-script@v7

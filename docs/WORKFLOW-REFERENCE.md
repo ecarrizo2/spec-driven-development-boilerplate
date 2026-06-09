@@ -141,7 +141,7 @@ done
 
 ### `epic-approval.yml`
 
-**What:** The gateway from epic planning to execution. Runs on epic PR approval — creates tickets, transitions Jira, and merges.
+**What:** The gateway from epic planning to execution. Runs on epic PR approval — creates tickets and transitions Jira.
 
 | Field | Value |
 |-------|-------|
@@ -157,7 +157,7 @@ done
 4. **Commit tracking updates** — pushes the ticket mapping to the epic branch
 5. **Set epic status to `active`** — updates `epic.md` frontmatter
 6. **Transition Jira epic** — moves the Jira epic to "In Progress" if `jira_epic` field exists
-7. **Squash-merge** — merges the epic branch into `main`
+7. **Human merge** — merge the epic branch into `main` after review
 
 **Jira details:** Creates tasks using Jira Cloud REST API (`/rest/api/3/issue`). If Jira secrets are missing, this step is skipped silently. Tickets use the `task` issue type from `config/teams.yaml`.
 
@@ -327,7 +327,7 @@ jobs:
 
 ### `post-merge-sync.yml`
 
-**What:** After any PR merges, updates all tracking files, transitions Jira, and checks if the epic is complete.
+**What:** After any PR merges, updates tracking files, transitions Jira, and checks if the epic is complete.
 
 | Field | Value |
 |-------|-------|
@@ -368,7 +368,7 @@ jobs:
 
 **Steps:**
 1. **Validate transition** — checks against canonical state machine in `STATUS-REFERENCE.md` via `bin/sync-state.js validate-status`. Rejects invalid transitions with reason logged. Terminal states (`done`, `merged`, `abandoned`, `skipped`) cannot transition further
-2. **Apply status change** — updates `delivery.yaml` node status and `task-graph.md` task status. Maps PR-centric statuses (`branched`, `draft-pr`, `ready-for-review`) to task statuses (`in-progress`, `done`)
+2. **Apply status change** — updates `delivery.yaml` node status and `task-graph.md` task status. Maps PR-centric statuses (`branched`, `draft-pr`, `ready-for-review`) to task statuses (`in-progress`, `in-progress`, `in-progress`) and `merged` to `done`
 3. **Check epic completion** — if all tasks are `done`/`skipped` and all nodes are `merged`/`abandoned`, flags for archive
 4. **Commit** — pushes updates to default branch
 5. **Notify** — if epic complete, comments on the linked epic issue
