@@ -31,59 +31,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
-            const path = require('path');
-            const { readFrontmatterField } = require(path.join(process.cwd(), 'bin/sync-state/epic-resolver'));
-
-            const branchRef = context.payload.pull_request.head.ref;
-            const branchBody = branchRef.replace(/^plan\//, '');
-            const branchTaskId = branchBody.split(/[_-]/)[0];
-
-            // Search for manifest
-            function walk(dir, results = []) {
-              if (!fs.existsSync(dir)) return results;
-              for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-                if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '_templates') continue;
-                const full = path.join(dir, entry.name);
-                if (entry.isDirectory()) {
-                  results.push(full);
-                  walk(full, results);
-                }
-              }
-              return results;
-            }
-
-            const roots = ['agent-development/plans', 'fallback-sdd', 'repos'];
-            let found = null;
-
-            for (const root of roots) {
-              if (!fs.existsSync(root)) continue;
-              for (const dir of walk(root)) {
-                const manifest = path.join(dir, 'manifest.yaml');
-                if (!fs.existsSync(manifest)) continue;
-                const taskId = readFrontmatterField(manifest, 'task_id');
-                if (String(taskId) === String(branchTaskId)) {
-                  found = {
-                    manifest,
-                    planDir: dir,
-                    taskId,
-                    epicId: readFrontmatterField(manifest, 'epic_id'),
-                    targetRepo: readFrontmatterField(manifest, 'target_repo'),
-                  };
-                  break;
-                }
-              }
-              if (found) break;
-            }
-
-            if (!found) {
-              core.warning(`Unable to resolve plan manifest for branch ${branchRef}`);
-              return;
-            }
-
-            core.setOutput('task_id', found.taskId);
-            core.setOutput('epic_id', found.epicId);
-            core.setOutput('target_repo', found.targetRepo);
+            const workflow = require('./bin/workflow-scripts/plan-dependency-check');
+            return await workflow.discoverPlanContext({ context, core });
 
       - name: Check task dependencies
         id: check_deps
@@ -92,51 +41,14 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const path = require('path');
-            const { resolveEpicDirectory } = require(path.join(process.cwd(), 'bin/sync-state/epic-resolver'));
-            const { resolveDependencies } = require(path.join(process.cwd(), 'bin/sync-state/validators'));
-
-            const epicId = '${{ steps.discover.outputs.epic_id }}';
-            const taskId = '${{ steps.discover.outputs.task_id }}';
-            const epicDir = resolveEpicDirectory(process.cwd(), epicId);
-
-            if (!epicDir) {
-              core.setOutput('deps_ok', 'false');
-              core.setOutput('blocked_by', 'epic-not-found');
-              core.setOutput('message', `## ⚠️ Dependency Check Failed\n\nUnable to resolve epic directory for epic \`${epicId}\`. Dependency guardrail cannot run safely.`);
-              return;
-            }
-
-            const depsCheck = resolveDependencies(epicDir, taskId);
-
-            if (!depsCheck.allDone && depsCheck.blockedBy.length > 0) {
-              const message = [
-                '## ⚠️ Dependency Check Failed',
-                '',
-                `Task **${taskId}** is blocked by the following dependencies:`,
-                '',
-                ...depsCheck.blockedBy.map(dep => `- **${dep.id}** (${dep.title || 'Untitled'}) - Status: \`${dep.status}\``),
-                '',
-                '**This plan PR cannot be approved until all dependencies are completed.**',
-                '',
-                'Complete the blocking tasks first, then this plan will be ready for approval.',
-              ].join('\n');
-
-              core.setOutput('deps_ok', 'false');
-              core.setOutput('message', message);
-              core.setOutput('blocked_by', depsCheck.blockedBy.map(d => d.id).join(', '));
-            } else {
-              const message = [
-                '## ✅ Dependency Check Passed',
-                '',
-                `Task **${taskId}** has no pending dependencies.`,
-                '',
-                'This plan is ready for review and approval.',
-              ].join('\n');
-
-              core.setOutput('deps_ok', 'true');
-              core.setOutput('message', message);
-            }
+            const workflow = require('./bin/workflow-scripts/plan-dependency-check');
+            return await workflow.checkTaskDependencies({
+              context, core,
+              inputs: {
+                epicId: '${{ steps.discover.outputs.epic_id }}',
+                taskId: '${{ steps.discover.outputs.task_id }}',
+              },
+            });
 
       - name: Create check run
         if: steps.discover.outputs.epic_id != ''
@@ -144,23 +56,14 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const depsOk = '${{ steps.check_deps.outputs.deps_ok }}' === 'true';
-            const taskId = '${{ steps.discover.outputs.task_id }}';
-            const blockedBy = '${{ steps.check_deps.outputs.blocked_by }}' || '';
-
-            await github.rest.checks.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'Plan Dependency Check',
-              head_sha: context.payload.pull_request.head.sha,
-              status: 'completed',
-              conclusion: depsOk ? 'success' : 'failure',
-              output: {
-                title: depsOk ? 'All dependencies satisfied' : 'Dependencies not satisfied',
-                summary: depsOk
-                  ? `Task ${taskId} is ready for approval.`
-                  : `Task ${taskId} is blocked by: ${blockedBy}`,
-                text: '${{ steps.check_deps.outputs.message }}',
+            const workflow = require('./bin/workflow-scripts/plan-dependency-check');
+            return await workflow.createDepsCheckRun({
+              github, context, core,
+              inputs: {
+                depsOk: '${{ steps.check_deps.outputs.deps_ok }}',
+                taskId: '${{ steps.discover.outputs.task_id }}',
+                blockedBy: '${{ steps.check_deps.outputs.blocked_by }}',
+                message: '${{ steps.check_deps.outputs.message }}',
               },
             });
 
@@ -170,38 +73,14 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const depsOk = '${{ steps.check_deps.outputs.deps_ok }}' === 'true';
-            const message = '${{ steps.check_deps.outputs.message }}';
-
-            // Check if we already commented
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
+            const workflow = require('./bin/workflow-scripts/plan-dependency-check');
+            return await workflow.commentDepsStatus({
+              github, context, core,
+              inputs: {
+                depsOk: '${{ steps.check_deps.outputs.deps_ok }}',
+                message: '${{ steps.check_deps.outputs.message }}',
+              },
             });
-
-            const botComment = comments.data.find(c =>
-              c.user.login === 'github-actions[bot]' &&
-              c.body.includes('Dependency Check')
-            );
-
-            if (botComment) {
-              // Update existing comment
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: message,
-              });
-            } else {
-              // Create new comment
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.payload.pull_request.number,
-                body: message,
-              });
-            }
 
       - name: Block approval if dependencies not met
         if: steps.discover.outputs.epic_id != '' && steps.check_deps.outputs.deps_ok != 'true'

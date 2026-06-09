@@ -36,7 +36,51 @@ function upsertFrontmatter(mdText, key, value) {
   return `---\n${next}\n---\n${rest}`;
 }
 
-function buildPlanPrompt({ manifestPath, planDir, epicId, taskId, taskTitle, targetRepo, requestFile }) {
+// ---------------------------------------------------------------------------
+// Discover plan context from branch name and manifest files
+// ---------------------------------------------------------------------------
+function discoverPlanContext({ context, core }) {
+  const branchRef = context.payload.pull_request.head.ref;
+  const branchBody = branchRef.replace(/^plan\//, '');
+  const taskId = branchBody.split(/[_-]/)[0];
+  const manifestPath = resolvePlanManifest(process.cwd(), null, taskId);
+
+  if (!manifestPath) {
+    core.setOutput('found', 'false');
+    core.setOutput('message', `No manifest found for task ${taskId} on ${branchRef}.`);
+    return;
+  }
+
+  const epicId = readFrontmatterField(manifestPath, 'epic_id') || '';
+  const targetRepo = readFrontmatterField(manifestPath, 'target_repo') || '';
+  const planDir = path.dirname(manifestPath);
+  const epicDir = epicId ? resolveEpicDirectory(process.cwd(), epicId) : null;
+
+  let taskTitle = '';
+  let requestFile = '';
+  if (epicDir) {
+    const taskGraphPath = path.join(epicDir, 'task-graph.md');
+    if (fs.existsSync(taskGraphPath)) {
+      const tasks = readTaskGraphTasks(taskGraphPath);
+      const task = tasks.find((t) => String(t.id) === String(taskId));
+      if (task) {
+        taskTitle = task.title || '';
+        requestFile = task.request_file || '';
+      }
+    }
+  }
+
+  core.setOutput('found', 'true');
+  core.setOutput('task_id', taskId);
+  core.setOutput('epic_id', epicId);
+  core.setOutput('target_repo', targetRepo);
+  core.setOutput('task_title', taskTitle);
+  core.setOutput('request_file', requestFile);
+  core.setOutput('manifest_path', manifestPath);
+  core.setOutput('plan_dir', planDir);
+}
+
+
   const specPath = path.join(planDir, 'specification.md');
   const epicDir = resolveEpicDirectory(process.cwd(), epicId || '');
   const epicFile = epicDir ? path.join(epicDir, 'epic.md') : '';
@@ -272,6 +316,7 @@ async function commentPickupStatus({ github, context, core }) {
 }
 
 module.exports = {
+  discoverPlanContext,
   synthesizePlanWithAI,
   applyAiSynthesis,
   publishPickupCheck,

@@ -57,64 +57,22 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const body = context.payload.pull_request?.body || '';
-            const epicId = body.match(/\*\*Epic ID:\*\*\s*([^\n]+)/)?.[1]?.trim() || '';
-            const taskId = body.match(/\*\*Task ID:\*\*\s*([^\n]+)/)?.[1]?.trim() || '';
-            const hubPlanBranch = body.match(/\*\*Hub plan branch:\*\*\s*([^\n]+)/)?.[1]?.trim() || '';
-            const hubPlanPr = body.match(/\*\*Hub plan PR:\*\*\s*([^\n]+)/)?.[1]?.trim() || '';
-
-            core.setOutput('epic_id', epicId);
-            core.setOutput('task_id', taskId);
-            core.setOutput('hub_plan_branch', hubPlanBranch);
-            core.setOutput('hub_plan_pr', hubPlanPr);
+            const workflow = require(`${process.env.GITHUB_WORKSPACE}/.sdd-hub/bin/workflow-scripts/notify-hub-verification`);
+            return await workflow.extractContextFromPrBody({ context, core });
 
       - name: Dispatch verification to hub
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
           script: |
-            const { generateIntegrityToken, generateCorrelationId } = require(`${process.env.GITHUB_WORKSPACE}/.sdd-hub/bin/sync-state/audit`);
-            const hubRepo = '${{ inputs.hub_repo }}';
-            const [hubOwner, hubName] = hubRepo.split('/');
-
-            if (!hubOwner || !hubName) {
-              console.log('Cannot parse hub repo from: ' + hubRepo);
-              return;
-            }
-
-            const epicId = '${{ steps.sdd-context.outputs.epic_id || steps.fallback.outputs.epic_id }}';
-            const taskId = '${{ steps.sdd-context.outputs.task_id || steps.fallback.outputs.task_id }}';
-            const hubPlanBranch = '${{ steps.sdd-context.outputs.hub_plan_branch || steps.fallback.outputs.hub_plan_branch }}';
-            const hubPlanPr = '${{ steps.sdd-context.outputs.hub_plan_pr || steps.fallback.outputs.hub_plan_pr }}';
-
-            if (!epicId || !taskId) {
-              console.log('No epic/task context found. Skipping verification notification.');
-              return;
-            }
-
-            const cid = generateCorrelationId();
-            const payload = {
-              repository: context.repo.owner + '/' + context.repo.repo,
-              pr_number: context.payload.pull_request?.number || '',
-              pr_url: context.payload.pull_request?.html_url || '',
-              branch: context.payload.pull_request?.head?.ref || '',
-              epic_id: epicId,
-              task_id: taskId,
-              hub_plan_branch: hubPlanBranch,
-              hub_plan_pr: hubPlanPr,
-              correlation_id: cid,
-            };
-
-            payload.integrity_token = generateIntegrityToken(
-              process.env.HUB_INTEGRITY_SECRET || '',
-              payload
-            );
-
-            await github.rest.repos.createDispatchEvent({
-              owner: hubOwner,
-              repo: hubName,
-              event_type: 'verify-pr',
-              client_payload: payload,
+            const workflow = require(`${process.env.GITHUB_WORKSPACE}/.sdd-hub/bin/workflow-scripts/notify-hub-verification`);
+            return await workflow.dispatchVerificationToHub({
+              github, context, core,
+              inputs: {
+                hubRepo: '${{ inputs.hub_repo }}',
+                epicId: '${{ steps.sdd-context.outputs.epic_id || steps.fallback.outputs.epic_id }}',
+                taskId: '${{ steps.sdd-context.outputs.task_id || steps.fallback.outputs.task_id }}',
+                hubPlanBranch: '${{ steps.sdd-context.outputs.hub_plan_branch || steps.fallback.outputs.hub_plan_branch }}',
+                hubPlanPr: '${{ steps.sdd-context.outputs.hub_plan_pr || steps.fallback.outputs.hub_plan_pr }}',
+              },
             });
-
-            console.log('Verification notification dispatched. Correlation ID: ' + cid);
