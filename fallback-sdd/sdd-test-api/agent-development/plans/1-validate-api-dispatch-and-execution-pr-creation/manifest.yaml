@@ -1,0 +1,15 @@
+---
+task_id: 1
+task_name: Validate API dispatch and execution PR creation
+epic_id: 1
+target_repo: sdd-test-api
+status: draft
+---
+
+# Task 1: Validate API dispatch and execution PR creation
+
+## Overview
+Implementation plan for task 1 from epic 1.
+
+## Request
+See specification.md for details.
