@@ -12,7 +12,7 @@ tasks:
     target_branch: null
     request_file: "1-api-smoke.md"
     jira_ticket: null
-    gh_issue: null
+    gh_issue: 28
     depends_on: []
     blocks: [2]
     status: draft
@@ -24,7 +24,7 @@ tasks:
     target_branch: null
     request_file: "2-frontend-smoke.md"
     jira_ticket: null
-    gh_issue: null
+    gh_issue: 29
     depends_on: [1]
     blocks: []
     status: draft
