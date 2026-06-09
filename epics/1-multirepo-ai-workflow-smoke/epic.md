@@ -1,7 +1,7 @@
 ---
 id: 1
 title: "Multi-Repo AI Workflow Smoke Test"
-status: pending
+status: active
 complexity: 5
 created: 2026-06-09
 last_updated: 2026-06-09
