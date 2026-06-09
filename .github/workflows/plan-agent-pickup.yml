@@ -34,50 +34,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const path = require('path');
-            const { resolvePlanManifest, resolveEpicDirectory } = require(path.join(process.cwd(), 'bin/sync-state/epic-resolver'));
-            const { readTaskGraphTasks } = require(path.join(process.cwd(), 'bin/sync-state/task-graph'));
-
-            const branchRef = context.payload.pull_request.head.ref;
-            const branchBody = branchRef.replace(/^plan\//, '');
-            const taskId = branchBody.split(/[_-]/)[0];
-            const manifestPath = resolvePlanManifest(process.cwd(), null, taskId);
-
-            if (!manifestPath) {
-              core.setOutput('found', 'false');
-              core.setOutput('message', `No manifest found for task ${taskId} on ${branchRef}.`);
-              return;
-            }
-
-            const { readFrontmatterField } = require(path.join(process.cwd(), 'bin/sync-state/epic-resolver'));
-            const fs = require('fs');
-            const epicId = readFrontmatterField(manifestPath, 'epic_id') || '';
-            const targetRepo = readFrontmatterField(manifestPath, 'target_repo') || '';
-            const planDir = path.dirname(manifestPath);
-            const epicDir = epicId ? resolveEpicDirectory(process.cwd(), epicId) : null;
-
-            let taskTitle = '';
-            let requestFile = '';
-            if (epicDir) {
-              const taskGraphPath = path.join(epicDir, 'task-graph.md');
-              if (fs.existsSync(taskGraphPath)) {
-                const tasks = readTaskGraphTasks(taskGraphPath);
-                const task = tasks.find((t) => String(t.id) === String(taskId));
-                if (task) {
-                  taskTitle = task.title || '';
-                  requestFile = task.request_file || '';
-                }
-              }
-            }
-
-            core.setOutput('found', 'true');
-            core.setOutput('task_id', taskId);
-            core.setOutput('epic_id', epicId);
-            core.setOutput('target_repo', targetRepo);
-            core.setOutput('task_title', taskTitle);
-            core.setOutput('request_file', requestFile);
-            core.setOutput('manifest_path', manifestPath);
-            core.setOutput('plan_dir', planDir);
+            const workflow = require('./bin/workflow-scripts/plan-agent-pickup');
+            return await workflow.discoverPlanContext({ context, core });
 
       # DEV BOT INTEGRATION POINT (plan synthesis):
       # Replace this step if your internal "Dev Bot" should generate plan content instead of GitHub Models.
@@ -97,129 +55,12 @@ jobs:
           TARGET_REPO: ${{ steps.discover.outputs.target_repo }}
           REQUEST_FILE: ${{ steps.discover.outputs.request_file }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          node - <<'NODE'
-          const fs = require('fs');
-          const path = require('path');
-          const { readText, splitMarkdownFrontmatter } = require(path.join(process.cwd(), 'bin/sync-state/_common'));
-          const { resolveEpicDirectory } = require(path.join(process.cwd(), 'bin/sync-state/epic-resolver'));
-
-          const manifestPath = process.env.MANIFEST_PATH;
-          const specPath = path.join(process.env.PLAN_DIR, 'specification.md');
-          const epicDir = resolveEpicDirectory(process.cwd(), process.env.EPIC_ID || '');
-          const epicFile = epicDir ? path.join(epicDir, 'epic.md') : '';
-          const taskGraphFile = epicDir ? path.join(epicDir, 'task-graph.md') : '';
-          const requestFile = epicDir && process.env.REQUEST_FILE
-            ? path.join(epicDir, 'requests', process.env.REQUEST_FILE)
-            : '';
-
-          function bodyOnly(filePath) {
-            if (!filePath || !fs.existsSync(filePath)) return '';
-            const text = readText(filePath);
-            const split = splitMarkdownFrontmatter(text);
-            return split.bodyLines.join('\n').trim();
-          }
-
-          function clip(text, max = 12000) {
-            return String(text || '').slice(0, max);
-          }
-
-          const epicText = clip(bodyOnly(epicFile));
-          const taskGraphText = clip(bodyOnly(taskGraphFile));
-          const requestText = clip(bodyOnly(requestFile));
-          const existingSpec = clip(fs.existsSync(specPath) ? readText(specPath) : '');
-          const manifestText = clip(fs.existsSync(manifestPath) ? readText(manifestPath) : '');
-
-          const prompt = [
-            'Generate an implementation plan section for an SDD task.',
-            'Return strict JSON only with this schema:',
-            '{',
-            '  "summary": "string",',
-            '  "implementation_steps": ["string"],',
-            '  "files_to_touch": ["string"],',
-            '  "verification_steps": ["string"],',
-            '  "risks": ["string"],',
-            '  "open_questions": ["string"]',
-            '}',
-            '',
-            `Task ID: ${process.env.TASK_ID}`,
-            `Task Title: ${process.env.TASK_TITLE}`,
-            `Target Repo: ${process.env.TARGET_REPO}`,
-            '',
-            'Epic:',
-            epicText || '(none)',
-            '',
-            'Task Graph:',
-            taskGraphText || '(none)',
-            '',
-            'Request:',
-            requestText || '(none)',
-            '',
-            'Current Plan Manifest:',
-            manifestText || '(none)',
-            '',
-            'Current Specification:',
-            existingSpec || '(none)',
-            '',
-            'Constraints:',
-            '- Keep steps concrete and implementable.',
-            '- Respect dependency order in task graph.',
-            '- Include test/verification expectations.',
-            '- Do not invent services not present in repo.',
-          ].join('\n');
-
-          async function run() {
-            // DEV BOT INTEGRATION POINT: swap this HTTP call with your internal tool invocation.
-            const MODEL_URL = 'https://models.github.ai/inference/chat/completions';
-            const MODEL_NAME = 'openai/gpt-4o';
-            let parsed = null;
-            let lastErr = '';
-
-            for (let attempt = 1; attempt <= 3; attempt += 1) {
-              try {
-                const response = await fetch(MODEL_URL, {
-                  method: 'POST',
-                  headers: {
-                    Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    model: MODEL_NAME,
-                    messages: [
-                      { role: 'system', content: 'You are an SDD planning agent. Output JSON only.' },
-                      { role: 'user', content: prompt },
-                    ],
-                    temperature: 0.2,
-                    max_tokens: 1800,
-                  }),
-                  signal: AbortSignal.timeout(60000),
-                });
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                const raw = String(data.choices?.[0]?.message?.content || '').trim();
-                const fenced = raw.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-                const jsonText = fenced ? fenced[1].trim() : raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-                parsed = JSON.parse(jsonText);
-                break;
-              } catch (err) {
-                lastErr = String(err.message || err);
-                if (attempt < 3) await new Promise((r) => setTimeout(r, [8000, 20000][attempt - 1] || 10000));
-              }
-            }
-
-            if (!parsed) {
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `ai_ok=false\nai_message=AI synthesis failed: ${lastErr.replace(/\n/g, ' ')}\n`);
-              return;
-            }
-
-            const encoded = Buffer.from(JSON.stringify(parsed), 'utf8').toString('base64');
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `ai_ok=true\nai_plan_b64=${encoded}\nai_message=AI synthesis completed\n`);
-          }
-
-          run().catch((err) => {
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `ai_ok=false\nai_message=AI synthesis crashed: ${String(err.message || err).replace(/\n/g, ' ')}\n`);
-          });
-          NODE
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const workflow = require('./bin/workflow-scripts/plan-agent-pickup');
+            return await workflow.synthesizePlanWithAI({ context, core });
 
       - name: Apply AI synthesis to plan artifacts
         if: steps.discover.outputs.found == 'true' && steps.ai_plan.outputs.ai_ok == 'true'
@@ -227,70 +68,12 @@ jobs:
           MANIFEST_PATH: ${{ steps.discover.outputs.manifest_path }}
           PLAN_DIR: ${{ steps.discover.outputs.plan_dir }}
           AI_PLAN_B64: ${{ steps.ai_plan.outputs.ai_plan_b64 }}
-        run: |
-          node - <<'NODE'
-          const fs = require('fs');
-          const path = require('path');
-
-          const manifestPath = process.env.MANIFEST_PATH;
-          const specPath = path.join(process.env.PLAN_DIR, 'specification.md');
-          const now = new Date().toISOString();
-          const aiPlan = JSON.parse(Buffer.from(process.env.AI_PLAN_B64 || '', 'base64').toString('utf8'));
-
-          function upsertFrontmatter(mdText, key, value) {
-            const match = mdText.match(/^---\n([\s\S]*?)\n---\n?/);
-            if (!match) return mdText;
-            const fm = match[1];
-            const rest = mdText.slice(match[0].length);
-            const line = `${key}: ${value}`;
-            const next = new RegExp(`^${key}:\\s*.*$`, 'm').test(fm)
-              ? fm.replace(new RegExp(`^${key}:\\s*.*$`, 'm'), line)
-              : `${fm}\n${line}`;
-            return `---\n${next}\n---\n${rest}`;
-          }
-
-          if (fs.existsSync(manifestPath)) {
-            let manifest = fs.readFileSync(manifestPath, 'utf8');
-            manifest = upsertFrontmatter(manifest, 'agent_generated', 'true');
-            manifest = upsertFrontmatter(manifest, 'agent_generated_at', `"${now}"`);
-            manifest = upsertFrontmatter(manifest, 'agent_generation_source', 'github-models');
-            fs.writeFileSync(manifestPath, manifest);
-          }
-
-          const section = [
-            '<!-- ai-plan:start -->',
-            '## AI Plan Synthesis',
-            '',
-            aiPlan.summary ? `**Summary:** ${aiPlan.summary}` : '',
-            '',
-            '### Implementation Steps',
-            ...(Array.isArray(aiPlan.implementation_steps) ? aiPlan.implementation_steps.map((s) => `- ${s}`) : []),
-            '',
-            '### Files to Touch',
-            ...(Array.isArray(aiPlan.files_to_touch) ? aiPlan.files_to_touch.map((s) => `- ${s}`) : []),
-            '',
-            '### Verification',
-            ...(Array.isArray(aiPlan.verification_steps) ? aiPlan.verification_steps.map((s) => `- ${s}`) : []),
-            '',
-            '### Risks',
-            ...(Array.isArray(aiPlan.risks) ? aiPlan.risks.map((s) => `- ${s}`) : []),
-            '',
-            '### Open Questions',
-            ...(Array.isArray(aiPlan.open_questions) ? aiPlan.open_questions.map((s) => `- ${s}`) : []),
-            '<!-- ai-plan:end -->',
-            '',
-          ].filter(Boolean).join('\n');
-
-          if (fs.existsSync(specPath)) {
-            let spec = fs.readFileSync(specPath, 'utf8');
-            if (spec.includes('<!-- ai-plan:start -->') && spec.includes('<!-- ai-plan:end -->')) {
-              spec = spec.replace(/<!-- ai-plan:start -->[\s\S]*?<!-- ai-plan:end -->\n?/m, section);
-            } else {
-              spec = `${spec.replace(/\s*$/, '')}\n\n${section}`;
-            }
-            fs.writeFileSync(specPath, spec);
-          }
-          NODE
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const workflow = require('./bin/workflow-scripts/plan-agent-pickup');
+            return await workflow.applyAiSynthesis({ context, core });
 
       - name: Commit agent updates
         if: steps.discover.outputs.found == 'true' && steps.ai_plan.outputs.ai_ok == 'true'
@@ -316,35 +99,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const found = process.env.FOUND === 'true';
-            const aiOk = process.env.AI_OK === 'true';
-            const taskId = process.env.TASK_ID || 'unknown';
-            const message = !found
-              ? (process.env.DISCOVER_MESSAGE || '')
-              : (aiOk ? `AI plan synthesis completed for task ${taskId}.` : (process.env.AI_MESSAGE || ''));
-
-            const pr = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number,
-            });
-            const headSha = pr.data.head.sha;
-
-            await github.rest.checks.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'Plan Generated by Agent',
-              head_sha: headSha,
-              status: 'completed',
-              conclusion: (found && aiOk) ? 'success' : 'failure',
-              output: {
-                title: (found && aiOk) ? 'Plan agent pickup completed' : 'Plan agent pickup failed',
-                summary: message,
-                text: (found && aiOk)
-                  ? 'The plan branch has been picked up and synthesized by an AI planning workflow.'
-                  : message,
-              },
-            });
+            const workflow = require('./bin/workflow-scripts/plan-agent-pickup');
+            return await workflow.publishPickupCheck({ github, context, core });
 
       - name: Comment pickup status
         uses: actions/github-script@v7
@@ -359,46 +115,5 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const found = process.env.FOUND === 'true';
-            const aiOk = process.env.AI_OK === 'true';
-            const marker = '<!-- plan-agent-pickup -->';
-            const body = (found && aiOk)
-              ? [
-                  marker,
-                  '✅ **Plan AI synthesis completed**',
-                  '',
-                  `- Task: \`${process.env.TASK_ID || ''}\``,
-                  `- Epic: \`${process.env.EPIC_ID || ''}\``,
-                  `- Target repo: \`${process.env.TARGET_REPO || ''}\``,
-                  '- Check run: `Plan Generated by Agent`',
-                  '- Model source: GitHub Models (`openai/gpt-4o`)',
-                ].join('\n')
-              : [
-                  marker,
-                  '❌ **Plan agent pickup failed**',
-                  '',
-                  (found ? (process.env.AI_MESSAGE || '') : (process.env.DISCOVER_MESSAGE || '')),
-                ].join('\n');
-
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-            });
-
-            const existing = comments.data.find((c) => c.body && c.body.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.payload.pull_request.number,
-                body,
-              });
-            }
+            const workflow = require('./bin/workflow-scripts/plan-agent-pickup');
+            return await workflow.commentPickupStatus({ github, context, core });

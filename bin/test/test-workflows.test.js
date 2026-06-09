@@ -138,7 +138,7 @@ it('all content:write workflows commit .sdd-audit', () => {
 });
 
 it('ai-verification-gate has retry with backoff', () => {
-  const text = fs.readFileSync(path.join(WORKFLOWS_DIR, 'ai-verification-gate.yml'), 'utf8');
+  const text = fs.readFileSync(path.join(SCRIPTS_DIR, 'ai-verification-gate.js'), 'utf8');
   assertContains(text, 'attempt', 'should have retry logic');
   assertContains(text, 'AbortSignal', 'should have timeout');
 });
@@ -163,6 +163,6 @@ it('validate workflow uses extracted helper module', () => {
 });
 
 it('target status maps review to in-progress', () => {
-  const text = fs.readFileSync(path.join(WORKFLOWS_DIR, 'target-status-events.yml'), 'utf8');
+  const text = fs.readFileSync(path.join(SCRIPTS_DIR, 'target-status-events.js'), 'utf8');
   assertContains(text, "'ready-for-review': 'in-progress'", 'ready-for-review should stay in-progress until merge');
 });

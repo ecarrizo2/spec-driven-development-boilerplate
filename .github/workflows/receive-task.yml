@@ -145,73 +145,37 @@ jobs:
         with:
           github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
           script: |
-            const aiOk = '${{ steps.ai_code.outputs.ai_ok }}' === 'true';
-            const aiSummary = '${{ steps.ai_code.outputs.ai_summary }}' || 'AI synthesis skipped.';
-
-            const prBody = [
-              '## SDD Task Context',
-              '',
-              `**Epic ID:** ${{ inputs.epic_id }}`,
-              `**Task ID:** ${{ inputs.task_id }}`,
-              `**Task Name:** ${{ inputs.task_name }}`,
-              `**Hub plan PR:** ${{ inputs.hub_repo }}#${{ inputs.hub_plan_pr }}`,
-              `**Hub plan branch:** ${{ inputs.hub_plan_branch }}`,
-              '',
-              '---',
-              '',
-              aiOk
-                ? `✅ **AI implementation generated** — ${aiSummary}`
-                : `⚠️ **AI synthesis did not complete** — ${aiSummary} Review and implement manually.`,
-              '',
-              'Context files: `.sdd/task-context.yaml` (primary) and `.sdd/context.yaml` (compatibility alias)',
-              '',
-              'This PR was auto-created by the SDD hub automation.',
-            ].join('\n');
-
-            const pr = await github.rest.pulls.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `feat(sdd): [${{ inputs.task_id }}] ${{ inputs.task_name }}`,
-              head: '${{ inputs.execution_branch }}',
-              base: context.payload.repository?.default_branch || 'main',
-              body: prBody,
-              draft: true,
+            const workflow = require(`${process.env.GITHUB_WORKSPACE}/.sdd-hub/bin/workflow-scripts/receive-task`);
+            return await workflow.openDraftPr({
+              github, context, core,
+              inputs: {
+                epicId: '${{ inputs.epic_id }}',
+                taskId: '${{ inputs.task_id }}',
+                taskName: '${{ inputs.task_name }}',
+                hubRepo: '${{ inputs.hub_repo }}',
+                hubPlanPr: '${{ inputs.hub_plan_pr }}',
+                hubPlanBranch: '${{ inputs.hub_plan_branch }}',
+                executionBranch: '${{ inputs.execution_branch }}',
+                aiOk: '${{ steps.ai_code.outputs.ai_ok }}',
+                aiSummary: '${{ steps.ai_code.outputs.ai_summary }}',
+              },
             });
-
-            core.setOutput('pr_number', String(pr.data.number));
-            core.setOutput('pr_url', pr.data.html_url);
 
       - name: Notify hub of PR creation
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.HUB_CROSS_REPO_TOKEN }}
           script: |
-            const { generateCorrelationId } = require(`${process.env.GITHUB_WORKSPACE}/.sdd-hub/bin/sync-state/audit`);
-            const hubRepo = '${{ inputs.hub_repo }}';
-            const [hubOwner, hubName] = hubRepo.split('/');
-
-            if (!hubOwner || !hubName) {
-              console.log('Cannot parse hub repo from: ' + hubRepo);
-              return;
-            }
-
-            const correlationId = generateCorrelationId();
-            await github.rest.repos.createDispatchEvent({
-              owner: hubOwner,
-              repo: hubName,
-              event_type: 'pr-status-change',
-              client_payload: {
-                epic_id: '${{ inputs.epic_id }}',
-                task_id: '${{ inputs.task_id }}',
-                status: 'draft-pr',
-                layer: 'delivery',
-                hub_plan_pr: '${{ inputs.hub_plan_pr }}',
-                pr_url: '${{ steps.open-pr.outputs.pr_url }}',
-                pr_number: '${{ steps.open-pr.outputs.pr_number }}',
-                branch: '${{ inputs.execution_branch }}',
-                repository: context.repo.owner + '/' + context.repo.repo,
-                correlation_id: correlationId,
+            const workflow = require(`${process.env.GITHUB_WORKSPACE}/.sdd-hub/bin/workflow-scripts/receive-task`);
+            return await workflow.notifyHubOfPrCreation({
+              github, context, core,
+              inputs: {
+                epicId: '${{ inputs.epic_id }}',
+                taskId: '${{ inputs.task_id }}',
+                hubRepo: '${{ inputs.hub_repo }}',
+                hubPlanPr: '${{ inputs.hub_plan_pr }}',
+                prUrl: '${{ steps.open-pr.outputs.pr_url }}',
+                prNumber: '${{ steps.open-pr.outputs.pr_number }}',
+                executionBranch: '${{ inputs.execution_branch }}',
               },
             });
-
-            console.log(`Hub notification dispatched. Correlation ID: ${correlationId}`);
