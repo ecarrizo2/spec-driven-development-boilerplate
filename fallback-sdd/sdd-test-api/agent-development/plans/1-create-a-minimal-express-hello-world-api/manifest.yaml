@@ -1,0 +1,15 @@
+---
+task_id: 1
+task_name: Create a minimal Express hello-world API
+epic_id: 2
+target_repo: sdd-test-api
+status: draft
+---
+
+# Task 1: Create a minimal Express hello-world API
+
+## Overview
+Implementation plan for task 1 from epic 2.
+
+## Request
+See specification.md for details.
