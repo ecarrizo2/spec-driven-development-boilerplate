@@ -31,7 +31,10 @@ async function generateCorrelationStep({ context, core }) {
 }
 
 async function discoverPlanContext({ context, core }) {
-  const branchRef = context.payload.pull_request.head.ref;
+  const branchRef = context.payload.pull_request?.head?.ref
+    || process.env.INPUT_PLAN_BRANCH
+    || context.payload.inputs?.plan_branch
+    || '';
   const branchBody = branchRef.replace(/^plan\//, '');
   const branchSlug = branchBody.includes('_') ? branchBody.slice(branchBody.indexOf('_') + 1) : branchBody;
 
