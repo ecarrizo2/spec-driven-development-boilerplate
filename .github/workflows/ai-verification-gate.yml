@@ -8,6 +8,7 @@ permissions:
   contents: write
   pull-requests: write
   checks: write
+  models: read
 
 concurrency:
   group: ai-verification-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}
