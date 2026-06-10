@@ -4,6 +4,9 @@ task_name: Create greeting frontend page
 epic_id: 1
 target_repo: sdd-test-frontend
 status: draft
+agent_generated: true
+agent_generated_at: "2026-06-10T11:17:20.374Z"
+agent_generation_source: github-models
 ---
 
 # Task 2: Create greeting frontend page

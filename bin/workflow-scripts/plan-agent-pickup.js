@@ -40,7 +40,12 @@ function upsertFrontmatter(mdText, key, value) {
 // Discover plan context from branch name and manifest files
 // ---------------------------------------------------------------------------
 function discoverPlanContext({ context, core }) {
-  const branchRef = context.payload.pull_request.head.ref;
+  const branchRef = process.env.BRANCH_REF || context.payload.pull_request?.head?.ref || '';
+  if (!branchRef) {
+    core.setOutput('found', 'false');
+    core.setOutput('message', 'No branch ref provided for plan pickup.');
+    return;
+  }
   const branchBody = branchRef.replace(/^plan\//, '');
   const taskId = branchBody.split(/[_-]/)[0];
   const manifestPath = resolvePlanManifest(process.cwd(), null, taskId);
@@ -80,7 +85,7 @@ function discoverPlanContext({ context, core }) {
   core.setOutput('plan_dir', planDir);
 }
 
-
+function buildPlanPrompt({ manifestPath, planDir, epicId, taskId, taskTitle, targetRepo, requestFile }) {
   const specPath = path.join(planDir, 'specification.md');
   const epicDir = resolveEpicDirectory(process.cwd(), epicId || '');
   const epicFile = epicDir ? path.join(epicDir, 'epic.md') : '';
@@ -239,10 +244,16 @@ async function publishPickupCheck({ github, context, core }) {
     ? (process.env.DISCOVER_MESSAGE || 'Plan manifest not found.')
     : (aiOk ? `AI plan synthesis completed for task ${taskId}.` : (process.env.AI_MESSAGE || 'AI synthesis failed.'));
 
+  const prNumber = Number(process.env.PR_NUMBER || context.payload.pull_request?.number || 0);
+  if (!prNumber) {
+    console.log('No PR number available; skipping pickup check run publication.');
+    return;
+  }
+
   const pr = await github.rest.pulls.get({
     owner: context.repo.owner,
     repo: context.repo.repo,
-    pull_number: context.payload.pull_request.number,
+    pull_number: prNumber,
   });
 
   await github.rest.checks.create({
@@ -289,7 +300,11 @@ async function commentPickupStatus({ github, context, core }) {
         found ? (process.env.AI_MESSAGE || 'AI synthesis failed.') : (process.env.DISCOVER_MESSAGE || 'Plan manifest not found.'),
       ].join('\n');
 
-  const prNumber = context.payload.pull_request.number;
+  const prNumber = Number(process.env.PR_NUMBER || context.payload.pull_request?.number || 0);
+  if (!prNumber) {
+    console.log('No PR number available; skipping pickup status comment.');
+    return;
+  }
   const { data: comments } = await github.rest.issues.listComments({
     owner: context.repo.owner,
     repo: context.repo.repo,
