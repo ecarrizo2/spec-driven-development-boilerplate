@@ -38,6 +38,9 @@ jobs:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.plan_branch || github.event.pull_request.head.ref }}
           fetch-depth: 0
 
+      - name: Use workflow scripts from main
+        run: git checkout origin/main -- bin/workflow-scripts/
+
       - name: Discover plan context
         id: discover
         uses: actions/github-script@v7
