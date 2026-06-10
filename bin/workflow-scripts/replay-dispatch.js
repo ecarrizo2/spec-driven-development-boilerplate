@@ -37,22 +37,37 @@ async function replayTaskDispatch({ github, context, core }) {
   const planDir = require('path').dirname(planManifest);
   const taskSlug = slugify(task.title || `task-${taskId}`);
   const branchType = readTeamsBranchType(projectRoot);
-  const planBranch = `plan/${taskId}_${taskSlug}`;
   const executionBranch = `${branchType}/${taskId}_${taskSlug}`;
 
   const targetRepoFullName = resolveRepoFullName(projectRoot, String(task.repo || ''));
   if (!targetRepoFullName) throw new Error(`Unable to resolve target repo full name for ${task.repo}.`);
 
-  const planPrList = await github.rest.pulls.list({
+  const planBranchPrefix = `plan/${taskId}_`;
+  let planBranch = `${planBranchPrefix}${taskSlug}`;
+  let mergedPlan = null;
+
+  // First try exact match, then fall back to any merged PR with matching task-id prefix
+  const exactSearch = await github.rest.pulls.list({
     owner: context.repo.owner,
     repo: context.repo.repo,
     state: 'closed',
     head: `${context.repo.owner}:${planBranch}`,
-    per_page: 20,
+    per_page: 10,
   });
+  mergedPlan = exactSearch.data.find(pr => pr.merged_at);
 
-  const mergedPlan = planPrList.data.find(pr => pr.merged_at);
-  if (!mergedPlan) throw new Error(`Unable to find merged plan PR for branch ${planBranch}.`);
+  if (!mergedPlan) {
+    const allClosed = await github.paginate(github.rest.pulls.list, {
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      state: 'closed',
+      per_page: 100,
+    });
+    mergedPlan = allClosed.find(pr => pr.merged_at && pr.head.ref.startsWith(planBranchPrefix));
+    if (mergedPlan) planBranch = mergedPlan.head.ref;
+  }
+
+  if (!mergedPlan) throw new Error(`Unable to find merged plan PR for branch prefix ${planBranchPrefix}.`);
 
   const payload = {
     epic_id: epicId,
