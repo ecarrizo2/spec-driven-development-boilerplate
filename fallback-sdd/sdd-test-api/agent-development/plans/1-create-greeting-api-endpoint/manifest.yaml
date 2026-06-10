@@ -1,0 +1,15 @@
+---
+task_id: 1
+task_name: Create greeting API endpoint
+epic_id: 1
+target_repo: sdd-test-api
+status: draft
+---
+
+# Task 1: Create greeting API endpoint
+
+## Overview
+Implementation plan for task 1 from epic 1.
+
+## Request
+See specification.md for details.
