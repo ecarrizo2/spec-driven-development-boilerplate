@@ -33,6 +33,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout hub
+        uses: actions/checkout@v4
+
       - name: Classify and label PR
         uses: actions/github-script@v7
         with:
@@ -56,6 +59,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout hub
+        uses: actions/checkout@v4
+
       - name: Mark plan PR ready for review
         uses: actions/github-script@v7
         with:
