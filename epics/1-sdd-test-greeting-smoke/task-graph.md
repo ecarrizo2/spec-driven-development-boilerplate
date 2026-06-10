@@ -5,7 +5,7 @@
 epic_id: 1
 epic_title: "Cross-repo greeting smoke test"
 total_tasks: 2
-last_updated: 2026-06-09
+last_updated: 2026-06-10
 critical_path: [1, 2]
 
 tasks:
@@ -18,7 +18,7 @@ tasks:
     gh_issue: null
     depends_on: []
     blocks: [2]
-    status: draft
+    status: done
     complexity: 3
     assigned_to: null
   - id: 2

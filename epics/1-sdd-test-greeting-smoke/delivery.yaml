@@ -41,6 +41,18 @@ nodes:
       - Confirm the page renders `Hello, world` from the API response.
     notes: ""
 
+  - id: 1
+    task_id: 1
+    repo: null
+    title: ""
+    branch: null
+    base: null
+    depends_on: []
+    status: merged
+    pr_url: null
+    pr_number: null
+    deploy_notes: null
+    notes: ""
 merge_order:
   - group: 1
     description: "API contract ready"
@@ -51,3 +63,5 @@ merge_order:
 
 negotiation_impacts: []
 incidents: []
+
+last_updated: 2026-06-10
