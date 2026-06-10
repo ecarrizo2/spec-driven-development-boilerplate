@@ -140,3 +140,30 @@ EARS and Given/When/Then are complementary. Choose based on the type of requirem
 | State machine or protocol transitions | EARS (State-driven) | `WHILE` keyword ties requirement to a defined system state |
 
 **You can use both syntaxes in the same request document.** API-level criteria in EARS, UI flow criteria in G/W/T — each applied where it communicates most clearly.
+
+---
+
+## Structural Planning vs. Acceptance Criteria
+
+EARS notation and Given/When/Then define **requirements** — what the system must do and how to verify completion.
+
+Structural planning principles (see `structural-planning-principles.md`) define **implementation guidance** — what to change in the codebase and how to verify each change.
+
+| Artifact | Syntax | Purpose | Example |
+|---|---|---|---|
+| Acceptance Criteria (in requests) | EARS / G/W/T | Define pass/fail for the task | "WHEN a vendor submits a review request, the system SHALL return 202 Accepted" |
+| Plan Instructions (in stage files) | AST verbs + signatures | Define structural mutations to the codebase | "Inject method into class VendorResolver: `async getReviews(vendorId: string): Promise<Review[]>`" |
+
+**Key difference:** Acceptance criteria specify **observable behavior** (API responses, UI state, data persistence). Plan instructions specify **code structure** (what exists in which file, what contracts are introduced).
+
+Both syntaxes are mandatory and complementary:
+- Acceptance criteria (from the request) define what "done" means
+- Plan instructions (in the stage files) define what structural changes achieve "done"
+- Verification commands (in the plan) prove the structural changes satisfy the acceptance criteria
+
+Plans reference acceptance criteria to ensure implementation satisfies requirements. If a plan does not clearly map its structural changes to the request's acceptance criteria, the plan is incomplete.
+
+**Example mapping:**
+- **AC:** "WHEN a client queries `vendor(id: "123") { reviews { id rating } }`, the system SHALL return an array of review objects"
+- **Plan instruction:** "Inject method into class VendorResolver: `async getReviews(vendorId: string): Promise<Review[]>`. This resolver delegates to ReviewService."
+- **Verification:** `curl -X POST .../graphql -d '{"query": "{ vendor(id: \"test\") { reviews { id rating } } }"}'` returns `{ "data": { "vendor": { "reviews": [...] } } }`
