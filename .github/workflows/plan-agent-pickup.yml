@@ -5,6 +5,16 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      plan_branch:
+        description: "Plan branch to process (e.g. plan/2_task-name)"
+        required: true
+        type: string
+      pr_number:
+        description: "PR number for checks/comments (optional)"
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -13,24 +23,29 @@ permissions:
   models: read
 
 concurrency:
-  group: plan-agent-${{ github.event.pull_request.number }}
+  group: plan-agent-${{ github.event.pull_request.number || github.event.inputs.plan_branch }}
   cancel-in-progress: false
 
 jobs:
   pickup:
-    if: startsWith(github.event.pull_request.head.ref, 'plan/')
+    if: (github.event_name == 'pull_request' && startsWith(github.event.pull_request.head.ref, 'plan/')) || (github.event_name == 'workflow_dispatch' && startsWith(github.event.inputs.plan_branch, 'plan/'))
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout plan branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.plan_branch || github.event.pull_request.head.ref }}
           fetch-depth: 0
+
+      - name: Use workflow scripts from main
+        run: git checkout origin/main -- bin/workflow-scripts/
 
       - name: Discover plan context
         id: discover
         uses: actions/github-script@v7
+        env:
+          BRANCH_REF: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.plan_branch || github.event.pull_request.head.ref }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -86,11 +101,12 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "${{ steps.discover.outputs.plan_dir }}"
           git commit -m "chore(plan): agent pickup for task ${{ steps.discover.outputs.task_id }}"
-          git push origin "${{ github.event.pull_request.head.ref }}"
+          git push origin "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.plan_branch || github.event.pull_request.head.ref }}"
 
       - name: Publish pickup check
         uses: actions/github-script@v7
         env:
+          PR_NUMBER: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number || github.event.pull_request.number }}
           FOUND: ${{ steps.discover.outputs.found }}
           AI_OK: ${{ steps.ai_plan.outputs.ai_ok }}
           TASK_ID: ${{ steps.discover.outputs.task_id }}
@@ -105,6 +121,7 @@ jobs:
       - name: Comment pickup status
         uses: actions/github-script@v7
         env:
+          PR_NUMBER: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number || github.event.pull_request.number }}
           FOUND: ${{ steps.discover.outputs.found }}
           AI_OK: ${{ steps.ai_plan.outputs.ai_ok }}
           TASK_ID: ${{ steps.discover.outputs.task_id }}
