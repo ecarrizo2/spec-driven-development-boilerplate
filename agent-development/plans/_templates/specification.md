@@ -4,14 +4,15 @@
 # ─────────────────────────────────────────────────────────────────────────────
 plan_id: null                   # References manifest.yaml task_id
 title: ""
----
-
 # ═══════════════════════════════════════════════════════════════════════════
 # APPROVAL: The ONLY place to check or set plan approval status is:
 #   manifest.yaml → plan_metadata.approval.status
 #
 # Do NOT add a status field here — it goes stale and misleads agents.
 # ═══════════════════════════════════════════════════════════════════════════
+---
+
+<!-- Plan Format Version: 2.0 — Structural Planning (see common-specs/structural-planning-principles.md) -->
 
 # Implementation Plan: Task <N> — <Short Descriptive Title>
 
@@ -53,7 +54,7 @@ Before starting, the implementing agent **must** read and internalize these file
   Human-readable summary of the work breakdown.
   Detailed step-by-step instructions live in separate stage files.
   The manifest.yaml is the authoritative record of stage state.
-
+  
   SINGLE-STAGE PLANS: Spec/doc updates are inline at the end of the single stage.
   MULTI-STAGE PLANS: Spec/doc updates are separate final stages.
   See agent-workflow.md for full rules.
@@ -69,6 +70,7 @@ Before starting, the implementing agent **must** read and internalize these file
 
 **Reads:** `path/to/context-file.ts`, ...
 **Writes:** `path/to/new-or-modified-file.ts`, ...
+**Contracts:** Key signatures/types introduced or modified (see stage file for details)
 
 ---
 
@@ -94,28 +96,49 @@ Update human-facing documentation to reflect changes introduced by this plan.
 
 ---
 
-## Open Questions & Decisions
+## Decisions Made During Planning
 
 <!--
-  MANDATORY SECTION. Captures ambiguities requiring human input before execution.
+  The agent resolved these by reading the code or following established patterns.
+  Record them so reviewers can audit the reasoning without blocking execution.
+  Format: one bullet per decision — title, how it was resolved, brief rationale.
+-->
 
-  During APPROVAL: the human reviewer reads each question, writes their decision
-  inline (replacing PENDING), and sets frontmatter approval.status to "approved".
+- **[Decision title]:** Resolved by reading `path/to/file` → chose [approach] because [reason].
 
-  The executing agent verifies no PENDING markers remain before starting.
+---
+
+## Open Questions
+
+<!--
+  MANDATORY SECTION. Only questions that genuinely require human input before execution.
+
+  Self-filter — do NOT write a question if any of these apply:
+  ✗ I can answer it by reading the code and following established patterns → Decisions Made
+  ✗ It is already answered in the request document → Decisions Made
+  ✗ It is a standard engineering judgment call I can make → Decisions Made
+
+  Format rules:
+  - Always use Q1/Q2/Q3 heading structure — NEVER a table
+  - Agent's recommendation is REQUIRED; "No preference" is not acceptable — form one from the code
+  - Aim for 1–3 questions; more than 3 suggests the request needs further refinement
+
+  During APPROVAL: the human writes their decision inline (replacing PENDING) and sets
+  manifest.yaml → approval.status to "approved". The executing agent verifies no PENDING remain.
+
   If there are genuinely no open questions, write:
-  "None — this plan is fully self-contained." and explain briefly why.
+  "None — all decisions resolved during planning (see Decisions Made above)."
 -->
 
 ### Q1: <Short question title>
 
-**Context:** <!-- Why this matters, what trade-offs exist -->
+**Context:** <!-- Why this matters and what trade-offs are at stake -->
 
 **Options:**
 - **A)** ...
 - **B)** ...
 
-**Agent's recommendation:** <!-- Which option and why, or "No recommendation" -->
+**Agent's recommendation:** <!-- Required — which option and why, based on the code. -->
 
 **Human decision:** `PENDING`
 
@@ -128,6 +151,28 @@ Update human-facing documentation to reflect changes introduced by this plan.
 | 1 | `path/to/file` | Created / Modified | 1 | Brief description |
 
 **Total files created: X | Total files modified: Y**
+
+---
+
+## Symbol Index
+
+<!--
+  List all code symbols touched by this plan. The executing agent uses these for
+  targeted grep sweeps before reading any file — eliminates full-file reads just to
+  locate a class or function definition.
+
+  Include only code-change stages; omit spec/doc-update stages.
+
+  Grep pattern tips:
+    Class:      class SymbolName
+    Method:     \.methodName\b
+    Interface:  interface IName
+    Decorator:  @DecoratorName
+-->
+
+| Symbol | Type | Grep pattern | Stages |
+|--------|------|--------------|--------|
+| `SymbolName` | class \| function \| interface | `class SymbolName` | 1 |
 
 ---
 
@@ -150,3 +195,7 @@ Update human-facing documentation to reflect changes introduced by this plan.
 4. Multiple commits per stage are allowed — each commit should be a self-contained unit.
 5. Follow `sdd/agent-development/agent-specs/agent-workflow.md` for all execution rules.
 6. Follow `sdd/agent-development/agent-specs/git-workflow.md` for commit and branch conventions.
+7. Follow structural planning principles (see `common-specs/structural-planning-principles.md`):
+   - Use signatures/contracts, not implementation logic
+   - Use AST-targeted verbs (Inject, Wrap, Delete, etc.) in stage instructions
+   - Verification commands over narrative validation descriptions
