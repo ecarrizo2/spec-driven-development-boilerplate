@@ -73,17 +73,10 @@ jobs:
               },
             });
 
-      - name: Create execution branch and SDD context file
+      - name: Create execution branch
         env:
           EXECUTION_BRANCH: ${{ inputs.execution_branch }}
           BASE_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
-          EPIC_ID: ${{ inputs.epic_id }}
-          TASK_ID: ${{ inputs.task_id }}
-          TASK_NAME: ${{ inputs.task_name }}
-          HUB_REPO: ${{ inputs.hub_repo }}
-          HUB_PLAN_BRANCH: ${{ inputs.hub_plan_branch }}
-          HUB_PLAN_PR: ${{ inputs.hub_plan_pr }}
-          PLAN_DIR: ${{ inputs.plan_dir }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -92,24 +85,6 @@ jobs:
           git push origin --delete "${EXECUTION_BRANCH}" 2>/dev/null || true
 
           git checkout -b "${EXECUTION_BRANCH}" "origin/${BASE_BRANCH}"
-
-          mkdir -p .sdd
-          cat > .sdd/task-context.yaml <<YAML
-          epic_id: "${EPIC_ID}"
-          task_id: "${TASK_ID}"
-          task_name: "${TASK_NAME}"
-          hub_repo: "${HUB_REPO}"
-          hub_plan_branch: "${HUB_PLAN_BRANCH}"
-          hub_plan_pr: "${HUB_PLAN_PR}"
-          plan_dir: "${PLAN_DIR}"
-          created_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          YAML
-
-          # Backward compatibility for existing automation reading .sdd/context.yaml
-          cp .sdd/task-context.yaml .sdd/context.yaml
-
-          git add .sdd/task-context.yaml .sdd/context.yaml
-          git commit -m "chore(sdd): initialize task ${TASK_ID} context"
           git push origin HEAD:"${EXECUTION_BRANCH}"
 
       # DEV BOT INTEGRATION POINT (code synthesis):
