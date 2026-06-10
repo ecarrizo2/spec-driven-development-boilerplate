@@ -137,6 +137,11 @@ stages:
       type: string
       required: true
       description: "Steps to undo this stage if it fails"
+    api_checkpoint:
+      type: boolean
+      required: false
+      default: false
+      description: "true if this stage changes observable API behavior (pauses for human verification)"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Dependency Mapping (v2.0 — optional)
@@ -210,3 +215,11 @@ _transitions:
     done: []      # terminal
     skipped: []   # terminal
     failed: []    # terminal
+
+  delivery.pr_status:
+    planned: [branched]
+    branched: [draft-pr]
+    draft-pr: [in-progress]
+    in-progress: [ready-for-review]
+    ready-for-review: [merged]
+    merged: []  # terminal
