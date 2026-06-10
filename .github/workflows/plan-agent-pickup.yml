@@ -32,6 +32,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout workflow scripts from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: workflow-main
+          fetch-depth: 1
+
       - name: Checkout plan branch
         uses: actions/checkout@v4
         with:
@@ -46,7 +53,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const workflow = require('./bin/workflow-scripts/plan-agent-pickup');
+            const workflow = require('./workflow-main/bin/workflow-scripts/plan-agent-pickup');
             return await workflow.discoverPlanContext({ context, core });
 
       # DEV BOT INTEGRATION POINT (plan synthesis):
@@ -71,7 +78,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const workflow = require('./bin/workflow-scripts/plan-agent-pickup');
+            const workflow = require('./workflow-main/bin/workflow-scripts/plan-agent-pickup');
             return await workflow.synthesizePlanWithAI({ context, core });
 
       - name: Apply AI synthesis to plan artifacts
@@ -84,7 +91,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const workflow = require('./bin/workflow-scripts/plan-agent-pickup');
+            const workflow = require('./workflow-main/bin/workflow-scripts/plan-agent-pickup');
             return await workflow.applyAiSynthesis({ context, core });
 
       - name: Commit agent updates
@@ -112,7 +119,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const workflow = require('./bin/workflow-scripts/plan-agent-pickup');
+            const workflow = require('./workflow-main/bin/workflow-scripts/plan-agent-pickup');
             return await workflow.publishPickupCheck({ github, context, core });
 
       - name: Comment pickup status
@@ -129,5 +136,5 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const workflow = require('./bin/workflow-scripts/plan-agent-pickup');
+            const workflow = require('./workflow-main/bin/workflow-scripts/plan-agent-pickup');
             return await workflow.commentPickupStatus({ github, context, core });
