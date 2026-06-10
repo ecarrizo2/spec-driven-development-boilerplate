@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { readFrontmatterField, readTaskGraphTasks } = require('../sync-state/epic-resolver');
+const { readFrontmatterField } = require('../sync-state/epic-resolver');
+const { readTaskGraphTasks } = require('../sync-state/task-graph');
 const { readText } = require('../sync-state/_common');
 
 function slugify(value) {
