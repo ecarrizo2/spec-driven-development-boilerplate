@@ -184,10 +184,6 @@ async function runAiVerification({ github, context, core, inputs = {} }) {
   await postVerificationComment({ github, childOwner, childRepo, prNumber, verdict, blastRadiusIssue, unexpectedFiles, declaredFiles });
   await updateTaskStatusAfterVerification({ epicId, taskId, pr: pr.data, prNumber, branch });
 
-  if (String(verdict.verdict || '').toLowerCase() !== 'aligned') {
-    await openAdvisoryIssue({ github, context, childOwner, childRepo, prNumber, epicId, taskId, verdict });
-  }
-
   commitStatusUpdate({ epicId, taskId });
 }
 
