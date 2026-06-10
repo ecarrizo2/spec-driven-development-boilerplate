@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { readFrontmatterField, readTaskGraphTasks } = require('../sync-state/epic-resolver');
+const { readFrontmatterField } = require('../sync-state/epic-resolver');
+const { readTaskGraphTasks } = require('../sync-state/task-graph');
 const { readText } = require('../sync-state/_common');
 
 function slugify(value) {
@@ -54,6 +55,27 @@ async function discoverEpicContext({ context, core }) {
   core.setOutput('epic_title', found.epicTitle);
   core.setOutput('task_graph_path', found.taskGraphPath);
   core.setOutput('branch_ref', branchRef);
+}
+
+async function disablePullRequestAutoMerge({ github, context }) {
+  const pr = context.payload.pull_request || {};
+  if (!pr.auto_merge || !pr.node_id) {
+    console.log('Auto-merge is not enabled for this PR.');
+    return;
+  }
+
+  await github.graphql(
+    `
+      mutation DisablePullRequestAutoMerge($pullRequestId: ID!) {
+        disablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId }) {
+          clientMutationId
+        }
+      }
+    `,
+    { pullRequestId: pr.node_id },
+  );
+
+  console.log(`Disabled auto-merge for PR #${pr.number}.`);
 }
 
 async function createGitHubIssuesAndJiraTickets({ github, context, core, inputs = {} }) {
@@ -249,6 +271,7 @@ async function transitionJiraEpic({ inputs = {} }) {
 
 module.exports = {
   discoverEpicContext,
+  disablePullRequestAutoMerge,
   createGitHubIssuesAndJiraTickets,
   recordTicketIdsInTaskGraph,
   setEpicStatusActive,
