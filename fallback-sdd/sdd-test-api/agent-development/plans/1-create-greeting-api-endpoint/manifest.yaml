@@ -20,7 +20,7 @@
         verified: false
 task_id: 1
 task_name: Create greeting API endpoint
-epic_id: 1
+epic_id: 2
 target_repo: sdd-test-api
 status: draft
 agent_generated: true
