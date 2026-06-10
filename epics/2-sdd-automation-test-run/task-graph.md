@@ -11,7 +11,7 @@ tasks:
     target_branch: null
     request_file: "requests/1-create-api-greeting-endpoint.md"
     jira_ticket: null
-    gh_issue: null
+    gh_issue: 41
     depends_on: []
     blocks: [2]
     status: draft
@@ -23,7 +23,7 @@ tasks:
     target_branch: null
     request_file: "requests/2-create-frontend-greeting-page.md"
     jira_ticket: null
-    gh_issue: null
+    gh_issue: 42
     depends_on: [1]
     blocks: []
     status: draft
