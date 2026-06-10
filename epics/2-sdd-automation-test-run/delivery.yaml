@@ -38,6 +38,18 @@ nodes:
       - Verify "Hello, world"
     notes: ""
 
+  - id: 1
+    task_id: 1
+    repo: null
+    title: ""
+    branch: feat/1_create-api-greeting-endpoint
+    base: null
+    depends_on: []
+    status: in-progress
+    pr_url: https://github.com/ecarrizo2/sdd-test-api/pull/7
+    pr_number: 7
+    deploy_notes: null
+    notes: ""
 merge_order:
   - group: 1
     description: "API contract first"
@@ -48,3 +60,5 @@ merge_order:
 
 negotiation_impacts: []
 incidents: []
+
+last_updated: 2026-06-10
