@@ -14,7 +14,7 @@ tasks:
     gh_issue: 41
     depends_on: []
     blocks: [2]
-    status: draft
+    status: in-progress
     complexity: 3
     assigned_to: null
   - id: 2
