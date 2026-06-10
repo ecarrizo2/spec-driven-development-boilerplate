@@ -1,0 +1,15 @@
+---
+task_id: 2
+task_name: Create greeting frontend page
+epic_id: 1
+target_repo: sdd-test-frontend
+status: draft
+---
+
+# Task 2: Create greeting frontend page
+
+## Overview
+Implementation plan for task 2 from epic 1.
+
+## Request
+See specification.md for details.
