@@ -182,10 +182,18 @@ async function dispatchTaskToTargetRepo({ github, context, inputs = {} }) {
 }
 
 async function commentOnPlan({ github, context, inputs = {} }) {
+  const prNumber = Number(
+    inputs.prNumber || process.env.PLAN_PR_NUMBER ||
+    context.payload.pull_request?.number || 0
+  );
+  if (!prNumber) {
+    console.log('No PR number available; skipping plan dispatch comment.');
+    return;
+  }
   await github.rest.issues.createComment({
     owner: context.repo.owner,
     repo: context.repo.repo,
-    issue_number: context.payload.pull_request.number,
+    issue_number: prNumber,
     body: [
       'Plan approved and dispatched.',
       '',

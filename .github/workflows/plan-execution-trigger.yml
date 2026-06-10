@@ -181,6 +181,7 @@ jobs:
                 targetRepoFullName: process.env.TARGET_REPO_FULL_NAME,
                 executionBranch: process.env.EXECUTION_BRANCH,
                 correlationId: process.env.CORRELATION_ID,
+                prNumber: process.env.PLAN_PR_NUMBER,
               },
             });
         env:
@@ -189,6 +190,7 @@ jobs:
           TASK_NAME: ${{ steps.discover.outputs.task_name }}
           EXECUTION_BRANCH: ${{ steps.discover.outputs.execution_branch }}
           CORRELATION_ID: ${{ steps.audit.outputs.correlation_id }}
+          PLAN_PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
 
       - name: Audit workflow end
         if: always()
