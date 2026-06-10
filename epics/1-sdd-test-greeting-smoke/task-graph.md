@@ -18,7 +18,7 @@ tasks:
     gh_issue: null
     depends_on: []
     blocks: [2]
-    status: done
+    status: planned
     complexity: 3
     assigned_to: null
   - id: 2

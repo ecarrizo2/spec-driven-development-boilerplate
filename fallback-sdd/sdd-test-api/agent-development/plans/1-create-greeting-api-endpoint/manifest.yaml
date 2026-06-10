@@ -1,4 +1,23 @@
 ---
+  checklist:
+      CHK-001:
+        description: "All plan stages have verified successfully"
+        verified: false
+      CHK-002:
+        description: "Tests pass (bin/dev verify:full)"
+        verified: false
+      CHK-003:
+        description: "No lint warnings remain (bin/dev lint)"
+        verified: false
+      CHK-004:
+        description: "Architecture docs updated if this change affects system design"
+        verified: false
+      CHK-005:
+        description: "Blast radius matches declared scope in manifest"
+        verified: false
+      CHK-006:
+        description: "API contract updated in contracts/ directory"
+        verified: false
 task_id: 1
 task_name: Create greeting API endpoint
 epic_id: 1

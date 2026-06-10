@@ -45,10 +45,10 @@ nodes:
     task_id: 1
     repo: null
     title: ""
-    branch: null
+    branch: feat/1_create-greeting-api-endpoint
     base: null
     depends_on: []
-    status: merged
+    status: branched
     pr_url: null
     pr_number: null
     deploy_notes: null
